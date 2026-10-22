@@ -2632,17 +2632,21 @@ export default function TEBrainApp() {
                               />
                             </div>
 
-                            {/* Row 3: Details stacked cleanly + AI Action Button */}
-                            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
-                              <div className="text-slate-400">
-                                Trạm:{" "}
-                                <strong className="text-slate-200">
-                                  {p.station}
-                                </strong>{" "}
-                                • Bài đo:{" "}
-                                <strong className="text-slate-200 font-mono">
-                                  {p.testItem}
-                                </strong>
+                            {/* Row 3: Details stacked on separate lines + AI Action Button */}
+                            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800/80 text-xs">
+                              <div className="space-y-1 min-w-0">
+                                <div className="text-slate-400 truncate">
+                                  Trạm:{" "}
+                                  <strong className="text-slate-200 font-semibold">
+                                    {p.station}
+                                  </strong>
+                                </div>
+                                <div className="text-slate-400 truncate">
+                                  Bài đo:{" "}
+                                  <strong className="text-cyan-300 font-mono">
+                                    {p.testItem}
+                                  </strong>
+                                </div>
                               </div>
 
                               <button
@@ -2653,7 +2657,7 @@ export default function TEBrainApp() {
                                     `Trạm ${p.station} bị lỗi ${p.errorCode} tại bài đo ${p.testItem} (${p.count} lỗi, chiếm ${p.percentOfFails}%). Hướng dẫn nguyên nhân và cách xử lý SOP?`
                                   );
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-semibold text-xs shrink-0 transition"
+                                className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-semibold text-xs shrink-0 transition"
                               >
                                 Hỏi AI cách sửa →
                               </button>
