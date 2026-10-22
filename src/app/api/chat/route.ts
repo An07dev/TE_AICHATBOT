@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
     const preferredModel =
       req.headers.get("x-gemini-model") || body.selectedModel || undefined;
 
-    const { question, history = [], imageInline, sessionId } = body;
+    const { question, history = [], imageInline, sessionId, lang } = body;
 
     if (!question || !question.trim()) {
       return NextResponse.json(
@@ -279,6 +279,7 @@ export async function POST(req: NextRequest) {
       imageInline,
       customKey: apiKey,
       preferredModel,
+      lang: lang === "en" || lang === "zh" ? lang : "vi",
     });
 
     const sources = relevantSources.map((c) => ({

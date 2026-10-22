@@ -45,6 +45,7 @@ import {
   SAMPLE_FACTORY_CSV_LOG,
   LogAnalysisResult,
 } from "@/lib/logAnalyzer";
+import { AppLang, LANG_OPTIONS, UI_TEXT } from "@/lib/i18n";
 
 interface KnowledgeItemType {
   _id: string;
@@ -272,6 +273,10 @@ function FormattedMessage({
 }
 
 export default function TEBrainApp() {
+  // Global UI & AI Language state (VI / EN / ZH)
+  const [appLang, setAppLang] = useState<AppLang>("vi");
+  const t = UI_TEXT[appLang];
+
   // Master PIN Auth Gate state
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -624,6 +629,20 @@ export default function TEBrainApp() {
     }
   };
 
+  const handleSwitchLang = (nextLang: AppLang) => {
+    setAppLang(nextLang);
+    setReportLang(nextLang);
+    localStorage.setItem("te_brain_lang", nextLang);
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].role === "assistant") {
+        return [{ role: "assistant", content: UI_TEXT[nextLang].welcomeMessage }];
+      }
+      return prev;
+    });
+    const langInfo = LANG_OPTIONS.find((l) => l.code === nextLang);
+    showToast(`${langInfo?.flag || "🌐"} ${langInfo?.name || nextLang}`);
+  };
+
   const handleLockApp = async () => {
     stopSpeaking();
     try {
@@ -647,8 +666,14 @@ export default function TEBrainApp() {
     const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
     const savedModel =
       localStorage.getItem("te_brain_selected_model") || "gemini-3.6-flash";
+    const savedLang = localStorage.getItem("te_brain_lang") as AppLang | null;
     if (savedKey) setCustomApiKey(savedKey);
     setSelectedModel(savedModel);
+    if (savedLang && (savedLang === "vi" || savedLang === "en" || savedLang === "zh")) {
+      setAppLang(savedLang);
+      setReportLang(savedLang);
+      setMessages([{ role: "assistant", content: UI_TEXT[savedLang].welcomeMessage }]);
+    }
 
     fetch("/api/auth", { cache: "no-store" })
       .then((r) => r.json())
@@ -762,6 +787,7 @@ export default function TEBrainApp() {
         body: JSON.stringify({
           question: q,
           selectedModel: activeM,
+          lang: appLang,
           history: messages.slice(-6).map((m) => ({
             role: m.role,
             content: m.content,
@@ -1014,6 +1040,7 @@ export default function TEBrainApp() {
         body: JSON.stringify({
           question: logResult.aiSummaryPrompt,
           selectedModel: activeM,
+          lang: appLang,
         }),
       });
       const data = await res.json();
@@ -1040,14 +1067,13 @@ export default function TEBrainApp() {
     setMessages([
       {
         role: "assistant",
-        content:
-          "Chào Kỹ sư TE! Tôi là **TE Brain AI** — trợ lý cá nhân đã kết nối trực tiếp với **MongoDB** và **Gemini RAG**.\n\nBạn có thể chạm vào câu hỏi mẫu, bấm **Mic 🎙️** để nói tiếng Việt, hoặc gửi **Mã lỗi / Ảnh chụp màn hình** để tra cứu ngay!",
+        content: t.welcomeMessage,
       },
     ]);
     setGeneratedReport("");
     setReportExtractedNote(null);
     setChatSubTab("conversation");
-    showToast("➕ Đã mở phiên hỗ trợ kỹ thuật mới!");
+    showToast(`➕ ${t.newSessionBtn}`);
   };
 
   const handleOpenSession = (
@@ -1290,7 +1316,7 @@ export default function TEBrainApp() {
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleaned }),
+        body: JSON.stringify({ text: cleaned, lang: appLang }),
       });
       const data = await res.json();
       if (res.ok && data.success && data.audioBase64) {
@@ -1463,14 +1489,16 @@ export default function TEBrainApp() {
     if (SpeechRec) {
       try {
         const recognition = new SpeechRec();
-        recognition.lang = "vi-VN";
+        const activeSpeechLang =
+          LANG_OPTIONS.find((l) => l.code === appLang)?.speechLang || "vi-VN";
+        recognition.lang = activeSpeechLang;
         recognition.continuous = false;
         recognition.interimResults = false;
 
         recognition.onstart = () => {
           setVoiceTarget(target);
           setIsListening(true);
-          showToast("🎙️ Đang nghe tiếng Việt...");
+          showToast(`🎙️ ${t.listeningVoice}`);
         };
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1517,7 +1545,7 @@ export default function TEBrainApp() {
             className="w-14 h-14 rounded-2xl object-contain bg-white p-1 shadow-lg shadow-cyan-500/20 animate-pulse"
           />
           <span className="text-xs text-slate-400 font-medium">
-            Đang kiểm tra phiên bảo mật...
+            {t.checkingAuth}
           </span>
         </div>
       </div>
@@ -1527,7 +1555,26 @@ export default function TEBrainApp() {
   if (!isAuthenticated) {
     return (
       <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex items-center justify-center px-4 overflow-hidden">
-        <div className="w-full max-w-sm bg-[#0b111e] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-5">
+        <div className="w-full max-w-sm bg-[#0b111e] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-4">
+          {/* Language Switcher on Lock Screen */}
+          <div className="flex items-center justify-center gap-1.5">
+            {LANG_OPTIONS.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => handleSwitchLang(l.code)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition flex items-center gap-1 ${
+                  appLang === l.code
+                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                <span>{l.flag}</span>
+                <span>{l.short}</span>
+              </button>
+            ))}
+          </div>
+
           {/* Header */}
           <div className="flex flex-col items-center text-center space-y-2">
             <img
@@ -1537,10 +1584,10 @@ export default function TEBrainApp() {
             />
             <div>
               <h1 className="font-bold text-base text-white tracking-tight">
-                Khóa Bảo Mật TE Brain AI
+                {t.lockTitle}
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                Nhập Mã PIN 6 số để mở khóa trạm kỹ thuật
+                {t.lockSubtitle}
               </p>
             </div>
           </div>
@@ -1581,7 +1628,7 @@ export default function TEBrainApp() {
                   handleVerifyPin(val);
                 }
               }}
-              placeholder="Gõ hoặc bấm bàn phím số bên dưới"
+              placeholder={t.pinPlaceholder}
               className="w-full h-9 rounded-xl bg-slate-950/90 border border-slate-800 focus:border-cyan-500 focus:outline-none text-center font-mono text-xs tracking-widest text-cyan-300 placeholder-slate-600"
               autoFocus
             />
@@ -1614,7 +1661,7 @@ export default function TEBrainApp() {
               onClick={() => handlePinDigitPress("CLEAR")}
               className="h-12 rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-rose-300 transition flex items-center justify-center"
             >
-              Xóa hết
+              {t.clearAll}
             </button>
 
             <button
@@ -1631,14 +1678,14 @@ export default function TEBrainApp() {
               disabled={verifyingPin}
               onClick={() => handlePinDigitPress("BACK")}
               className="h-12 rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-slate-800 text-slate-300 hover:text-cyan-300 transition flex items-center justify-center"
-              title="Xóa 1 số"
+              title="Back"
             >
               <Delete className="w-4 h-4" />
             </button>
           </div>
 
           <p className="text-[11px] text-center text-slate-500">
-            Phiên đăng nhập tự động lưu 30 ngày trên thiết bị này
+            {t.sessionRemembered}
           </p>
         </div>
       </div>
@@ -1681,22 +1728,45 @@ export default function TEBrainApp() {
               <p className="text-[10px] text-slate-400 flex items-center gap-1 whitespace-nowrap">
                 <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  Online
+                  {t.online}
+                </span>
+                <span>•</span>
+                <span className="text-cyan-300/90">
+                  {stats.total} {t.itemsCount}
                 </span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
+            {/* 3-Language Switcher (VI / EN / ZH) */}
+            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-700/80">
+              {LANG_OPTIONS.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => handleSwitchLang(l.code)}
+                  title={l.name}
+                  className={`px-1.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-0.5 ${
+                    appLang === l.code
+                      ? "bg-cyan-500 text-slate-950 shadow-xs"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <span>{l.flag}</span>
+                  <span>{l.short}</span>
+                </button>
+              ))}
+            </div>
 
             <button
               onClick={() => {
                 fetchKnowledge();
                 fetchSystemStatus();
-                showToast("Đã làm mới dữ liệu!");
+                showToast(t.refresh);
               }}
               className="h-7.5 w-7.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 flex items-center justify-center transition"
-              title="Làm mới"
+              title={t.refresh}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -1704,7 +1774,7 @@ export default function TEBrainApp() {
             <button
               onClick={handleLockApp}
               className="h-7.5 w-7.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-amber-400 hover:text-rose-300 border border-slate-700/80 flex items-center justify-center transition"
-              title="Khóa màn hình bảo mật"
+              title={t.lockScreen}
             >
               <Lock className="w-3.5 h-3.5" />
             </button>
@@ -1728,7 +1798,7 @@ export default function TEBrainApp() {
                     }`}
                 >
                   <Bot className="w-3.5 h-3.5 shrink-0" />
-                  <span>Chat</span>
+                  <span>{t.subChat}</span>
                 </button>
 
                 <button
@@ -1743,7 +1813,9 @@ export default function TEBrainApp() {
                     }`}
                 >
                   <History className="w-3.5 h-3.5 shrink-0" />
-                  <span>Lịch sử ({chatSessions.length})</span>
+                  <span>
+                    {t.subHistory} ({chatSessions.length})
+                  </span>
                 </button>
 
                 <button
@@ -1755,7 +1827,7 @@ export default function TEBrainApp() {
                     }`}
                 >
                   <FileText className="w-3.5 h-3.5 shrink-0" />
-                  <span>Báo cáo</span>
+                  <span>{t.subReport}</span>
                 </button>
               </div>
 
@@ -1828,10 +1900,10 @@ export default function TEBrainApp() {
                     <div className="space-y-1.5 pb-1">
                       <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-cyan-400" />
-                        Chạm để hỏi nhanh:
+                        {t.quickAskLabel}
                       </span>
                       <div className="grid grid-cols-2 gap-1.5">
-                        {QUICK_PROMPTS.map((item, i) => (
+                        {t.quickPrompts.map((item, i) => (
                           <button
                             key={i}
                             onClick={() => handleSendMessage(item.full)}
@@ -1884,7 +1956,7 @@ export default function TEBrainApp() {
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
                                   <BookOpen className="w-3 h-3" />
-                                  Nguồn trích dẫn ({msg.sources.length})
+                                  {t.citedSources} ({msg.sources.length})
                                 </span>
                                 {msg.modelUsed && (
                                   <span className="text-[10px] font-mono text-slate-500">
@@ -1933,12 +2005,12 @@ export default function TEBrainApp() {
                               {speakingIdx === idx ? (
                                 <>
                                   <Square className="w-3 h-3 fill-current" />
-                                  <span>Dừng đọc</span>
+                                  <span>{t.stopListening}</span>
                                 </>
                               ) : (
                                 <>
                                   <Volume2 className="w-3.5 h-3.5" />
-                                  <span>Nghe hướng dẫn</span>
+                                  <span>{t.listenGuide}</span>
                                 </>
                               )}
                             </button>
@@ -1952,7 +2024,7 @@ export default function TEBrainApp() {
                                 className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300 transition"
                               >
                                 <BookmarkPlus className="w-3.5 h-3.5" />
-                                <span>Lưu vào Sổ tay</span>
+                                <span>{t.saveToNote}</span>
                               </button>
                             )}
                           </div>
@@ -1965,7 +2037,7 @@ export default function TEBrainApp() {
                     <div className="flex items-start">
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-bl-xs px-3.5 py-2.5 text-xs text-slate-300 flex items-center gap-2">
                         <div className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin shrink-0" />
-                        <span>Đang tra cứu Kho Tri Thức & phân tích...</span>
+                        <span>{t.searchingRag}</span>
                       </div>
                     </div>
                   )}
@@ -1982,7 +2054,7 @@ export default function TEBrainApp() {
                         className="w-9 h-9 rounded-lg object-cover"
                       />
                       <span className="text-xs text-cyan-300">
-                        Đã đính kèm ảnh màn hình lỗi
+                        {t.attachedImageLabel}
                       </span>
                       <button
                         onClick={() => setAttachedImage(null)}
@@ -2000,8 +2072,8 @@ export default function TEBrainApp() {
                           <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                           <span>
                             {transcribingAudio
-                              ? "Đang chuyển giọng nói thành văn bản..."
-                              : "Đang nghe tiếng Việt... (Chạm lại Mic khi xong)"}
+                              ? t.transcribingVoice
+                              : t.listeningVoice}
                           </span>
                         </div>
                         <button
@@ -2009,7 +2081,7 @@ export default function TEBrainApp() {
                           onClick={stopVoiceInput}
                           className="px-2 py-0.5 rounded bg-rose-500/30 text-white font-semibold text-[11px]"
                         >
-                          Xong
+                          {t.doneBtn}
                         </button>
                       </div>
                     )}
@@ -2058,7 +2130,7 @@ export default function TEBrainApp() {
                       type="text"
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Nhập mã lỗi hoặc bấm Mic để nói..."
+                      placeholder={t.chatPlaceholder}
                       className="flex-1 h-10 rounded-xl bg-slate-900 border border-slate-700/90 focus:border-cyan-500 focus:outline-none px-3 text-xs sm:text-sm text-white placeholder-slate-400 min-w-0"
                     />
 
@@ -2081,10 +2153,10 @@ export default function TEBrainApp() {
                 <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
                   <div>
                     <h3 className="text-xs font-bold text-white">
-                      Lịch sử Phiên Hỗ Trợ Kỹ Thuật
+                      {t.historyTitle}
                     </h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Đã lưu {chatSessions.length} phiên trong MongoDB
+                      {t.historySavedCount} {chatSessions.length} {t.historySessionsInDb}
                     </p>
                   </div>
 
@@ -2095,7 +2167,7 @@ export default function TEBrainApp() {
                       className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition"
                     >
                       <MessageSquarePlus className="w-3.5 h-3.5" />
-                      <span>Phiên mới</span>
+                      <span>{t.newSessionBtn}</span>
                     </button>
 
                     {chatSessions.length > 0 && (
@@ -2116,11 +2188,10 @@ export default function TEBrainApp() {
                   <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 text-center space-y-2">
                     <History className="w-8 h-8 text-slate-500 mx-auto" />
                     <p className="text-xs font-semibold text-slate-300">
-                      Chưa có phiên hội thoại nào được lưu
+                      {t.emptyHistoryTitle}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Khi bạn trao đổi mã lỗi với AI, toàn bộ lịch sử từng ca sẽ
-                      tự động lưu tại đây để mở lại hoặc xuất báo cáo 8D.
+                      {t.emptyHistoryDesc}
                     </p>
                   </div>
                 ) : (
@@ -2142,7 +2213,7 @@ export default function TEBrainApp() {
                             </h4>
                             {isCurrent && (
                               <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] font-semibold shrink-0">
-                                Đang mở
+                                {t.activeBadge}
                               </span>
                             )}
                           </div>
@@ -2151,15 +2222,15 @@ export default function TEBrainApp() {
                           <div className="space-y-1 text-xs border-y border-slate-800/80 py-2">
                             <div className="flex items-center justify-between">
                               <span className="text-slate-400">
-                                Số lượt trao đổi:
+                                {t.exchangeCount}
                               </span>
                               <span className="font-mono font-semibold text-slate-200">
-                                {s.messageCount} tin nhắn
+                                {s.messageCount} {t.messagesUnit}
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-slate-400">
-                                Cập nhật lúc:
+                                {t.updatedAtLabel}
                               </span>
                               <span className="font-mono text-slate-300">
                                 {new Date(s.updatedAt).toLocaleString("vi-VN", {
@@ -2182,7 +2253,7 @@ export default function TEBrainApp() {
                                 className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-slate-700 transition flex items-center justify-center gap-1.5"
                               >
                                 <Bot className="w-3.5 h-3.5" />
-                                <span>Mở lại chat</span>
+                                <span>{t.reopenChatBtn}</span>
                               </button>
 
                               <button
@@ -2191,7 +2262,7 @@ export default function TEBrainApp() {
                                 className="flex-1 py-2 px-3 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/35 text-xs font-semibold text-indigo-200 border border-indigo-500/40 transition flex items-center justify-center gap-1.5"
                               >
                                 <FileText className="w-3.5 h-3.5" />
-                                <span>Xuất Báo Cáo</span>
+                                <span>{t.exportReportBtn}</span>
                               </button>
                             </div>
 
@@ -2220,19 +2291,17 @@ export default function TEBrainApp() {
                   <div>
                     <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-cyan-400" />
-                      Xuất Báo Cáo Sự Cố Tự Động Từ Phiên Chat
+                      {t.reportHeaderTitle}
                     </h3>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      AI sẽ tổng hợp toàn bộ mạch chẩn đoán hiện tại (
-                      {Math.max(0, messages.length - 1)} lượt trao đổi) thành
-                      biên bản chuẩn nhà máy.
+                      {t.reportHeaderDesc}
                     </p>
                   </div>
 
                   {/* Report Template Selector */}
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-semibold text-slate-300 block">
-                      1. Chọn mẫu báo cáo cần xuất:
+                      {t.step1Template}
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <button
@@ -2245,15 +2314,14 @@ export default function TEBrainApp() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-xs text-cyan-300">
-                            📱 Mẫu Giao Ca Nhanh
+                            {t.handoverTitle}
                           </span>
                           {reportType === "handover" && (
                             <CheckCircle2 className="w-4 h-4 text-cyan-400" />
                           )}
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          Ngắn gọn, gạch đầu dòng rõ ràng để Copy gửi Zalo /
-                          Teams / Line cho ca sau.
+                          {t.handoverDesc}
                         </p>
                       </button>
 
@@ -2267,15 +2335,14 @@ export default function TEBrainApp() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-xs text-indigo-300">
-                            📑 Mẫu Kỹ Thuật 8D / CAPA
+                            {t.eightDTitle}
                           </span>
                           {reportType === "8d" && (
                             <CheckCircle2 className="w-4 h-4 text-indigo-400" />
                           )}
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          Đầy đủ D1 → D7 (Triệu chứng, Containment, Root Cause,
-                          Corrective & Preventive).
+                          {t.eightDDesc}
                         </p>
                       </button>
                     </div>
@@ -2284,7 +2351,7 @@ export default function TEBrainApp() {
                   {/* Report Output Language Selector (3 Main Languages: VI / EN / ZH) */}
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-semibold text-slate-300 block">
-                      2. Chọn ngôn ngữ xuất báo cáo:
+                      {t.step2Lang}
                     </span>
                     <div className="grid grid-cols-3 gap-2">
                       {[
@@ -2292,19 +2359,19 @@ export default function TEBrainApp() {
                           code: "vi" as const,
                           flag: "🇻🇳",
                           label: "Tiếng Việt",
-                          sub: "Nội bộ ca",
+                          sub: "Vietnamese",
                         },
                         {
                           code: "en" as const,
                           flag: "🇺🇸",
-                          label: "Tiếng Anh",
-                          sub: "English",
+                          label: "English",
+                          sub: "Tiếng Anh",
                         },
                         {
                           code: "zh" as const,
                           flag: "🇨🇳",
-                          label: "Tiếng Trung",
-                          sub: "简体中文",
+                          label: "简体中文",
+                          sub: "Tiếng Trung",
                         },
                       ].map((lang) => (
                         <button
@@ -2338,32 +2405,15 @@ export default function TEBrainApp() {
                     {reportLoading ? (
                       <>
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>
-                          Đang tổng hợp báo cáo{" "}
-                          {reportType === "8d" ? "8D / CAPA" : "Giao ca"} (
-                          {reportLang === "en"
-                            ? "Tiếng Anh"
-                            : reportLang === "zh"
-                              ? "Tiếng Trung"
-                              : "Tiếng Việt"}
-                          )...
-                        </span>
+                        <span>{t.generatingReportBtn}</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4" />
                         <span>
-                          Tổng hợp{" "}
-                          {reportType === "8d"
-                            ? "Báo Cáo 8D / CAPA"
-                            : "Báo Cáo Giao Ca"}{" "}
-                          (
-                          {reportLang === "en"
-                            ? "Tiếng Anh"
-                            : reportLang === "zh"
-                              ? "Tiếng Trung"
-                              : "Tiếng Việt"}
-                          )
+                          {t.generateReportBtn}{" "}
+                          {reportType === "8d" ? "8D / CAPA" : "Shift Handover"} (
+                          {reportLang.toUpperCase()})
                         </span>
                       </>
                     )}
@@ -2377,12 +2427,12 @@ export default function TEBrainApp() {
                       <div>
                         <span className="text-xs font-bold text-emerald-300 block">
                           {reportType === "8d"
-                            ? "📑 Bản Thảo Báo Cáo 8D / CAPA"
-                            : "📋 Bản Thảo Báo Cáo Giao Ca"}
+                            ? t.eightDTitle
+                            : t.handoverTitle}
                         </span>
                         {reportModelUsed && (
                           <span className="text-[10px] font-mono text-slate-500">
-                            Tổng hợp bởi: {reportModelUsed}
+                            Model: {reportModelUsed}
                           </span>
                         )}
                       </div>
@@ -2392,13 +2442,13 @@ export default function TEBrainApp() {
                         onClick={() => {
                           navigator.clipboard.writeText(generatedReport);
                           showToast(
-                            "📋 Đã sao chép báo cáo! Dán ngay vào Zalo / Teams / Email."
+                            "📋 Đã sao chép báo cáo! Dán ngay vào Zalo / Teams / WeChat."
                           );
                         }}
                         className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
                       >
                         <Copy className="w-3.5 h-3.5" />
-                        <span>Copy Báo Cáo</span>
+                        <span>{t.copyReportBtn}</span>
                       </button>
                     </div>
 
@@ -2418,7 +2468,7 @@ export default function TEBrainApp() {
                         className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5 transition"
                       >
                         <Download className="w-4 h-4 text-cyan-400" />
-                        <span>Tải File Báo Cáo (.TXT)</span>
+                        <span>{t.downloadTxtBtn}</span>
                       </button>
 
                       <button
@@ -2430,8 +2480,8 @@ export default function TEBrainApp() {
                         <BookmarkPlus className="w-4 h-4 text-emerald-400" />
                         <span>
                           {savingReportToVault
-                            ? "Đang tạo Vector & Lưu..."
-                            : "Lưu thẳng vào Kho Tri Thức RAG"}
+                            ? t.savingToVaultBtn
+                            : t.saveToVaultBtn}
                         </span>
                       </button>
                     </div>
@@ -2439,16 +2489,10 @@ export default function TEBrainApp() {
                 ) : (
                   <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 text-center space-y-2">
                     <p className="text-xs text-slate-300 font-medium">
-                      Chưa có bản báo cáo nào được tạo cho phiên này.
+                      {t.emptyReportTitle}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Hãy chọn mẫu{" "}
-                      <strong className="text-cyan-300">Giao Ca Nhanh</strong>{" "}
-                      hoặc{" "}
-                      <strong className="text-indigo-300">
-                        Báo Cáo 8D / CAPA
-                      </strong>{" "}
-                      ở trên rồi bấm nút Tổng hợp.
+                      {t.emptyReportDesc}
                     </p>
                   </div>
                 )}
@@ -2466,7 +2510,7 @@ export default function TEBrainApp() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="text-[10px] uppercase tracking-wider text-cyan-400 font-semibold block">
-                        File Log Đang Phân Tích
+                        {t.analyzingFileLabel}
                       </span>
                       <h2 className="font-mono font-bold text-xs sm:text-sm text-white truncate">
                         {logResult ? logResult.fileName : "Chưa chọn file"}
@@ -2487,7 +2531,7 @@ export default function TEBrainApp() {
                         className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition"
                       >
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Chọn File</span>
+                        <span>{t.uploadLogBtn}</span>
                       </button>
 
                       <button
@@ -2508,43 +2552,43 @@ export default function TEBrainApp() {
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Tỷ lệ đạt (FPY)
+                          {t.kpiFpy}
                         </span>
                         <div className="text-lg font-bold font-mono text-amber-300 mt-0.5">
                           {logResult.fpyRate}%
                         </div>
                         <span className="text-[11px] text-slate-500 block mt-0.5">
-                          PASS: {logResult.passCount}/{logResult.totalRecords} lượt
+                          PASS: {logResult.passCount}/{logResult.totalRecords}
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Tổng lượt Lỗi (FAIL)
+                          {t.kpiTotalFail}
                         </span>
                         <div className="text-lg font-bold font-mono text-rose-400 mt-0.5">
-                          {logResult.failCount} lỗi
+                          {logResult.failCount}
                         </div>
                         <span className="text-[11px] text-slate-500 block mt-0.5">
-                          Trên {logResult.uniqueUnits} sản phẩm
+                          SN: {logResult.uniqueUnits}
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Báo lỗi ảo (Retest OK)
+                          {t.kpiFalseCall}
                         </span>
                         <div className="text-lg font-bold font-mono text-cyan-300 mt-0.5">
                           {logResult.falseCallRate}%
                         </div>
                         <span className="text-[11px] text-slate-500 block mt-0.5">
-                          {logResult.retestOkCount} máy test lại PASS
+                          Retest PASS: {logResult.retestOkCount}
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Chỉ số Cpk thấp nhất
+                          {t.kpiMinCpk}
                         </span>
                         {logResult.cpkItems.length > 0 ? (
                           <>
@@ -2552,12 +2596,12 @@ export default function TEBrainApp() {
                               {logResult.cpkItems[0].cpk}
                             </div>
                             <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
-                              Tại: {logResult.cpkItems[0].testItem}
+                              {logResult.cpkItems[0].testItem}
                             </span>
                           </>
                         ) : (
                           <div className="text-xs text-slate-500 mt-2">
-                            Không có LSL/USL
+                            N/A
                           </div>
                         )}
                       </div>
@@ -2573,7 +2617,7 @@ export default function TEBrainApp() {
                           : "text-slate-400 hover:text-slate-200"
                           }`}
                       >
-                        Top Lỗi ({logResult.pareto.length})
+                        {t.tabTopDefects} ({logResult.pareto.length})
                       </button>
 
                       <button
@@ -2584,7 +2628,7 @@ export default function TEBrainApp() {
                           : "text-slate-400 hover:text-slate-200"
                           }`}
                       >
-                        Chỉ số Cpk ({logResult.cpkItems.length})
+                        {t.tabCpkIndex} ({logResult.cpkItems.length})
                       </button>
 
                       <button
@@ -2595,7 +2639,7 @@ export default function TEBrainApp() {
                           : "text-slate-400 hover:text-slate-200"
                           }`}
                       >
-                        Báo cáo AI
+                        {t.tabAiReport}
                       </button>
                     </div>
 
@@ -2636,13 +2680,13 @@ export default function TEBrainApp() {
                             <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800/80 text-xs">
                               <div className="space-y-1 min-w-0">
                                 <div className="text-slate-400 truncate">
-                                  Trạm:{" "}
+                                  {t.stationLabel}{" "}
                                   <strong className="text-slate-200 font-semibold">
                                     {p.station}
                                   </strong>
                                 </div>
                                 <div className="text-slate-400 truncate">
-                                  Bài đo:{" "}
+                                  {t.testItemLabel}{" "}
                                   <strong className="text-cyan-300 font-mono">
                                     {p.testItem}
                                   </strong>
@@ -2659,7 +2703,7 @@ export default function TEBrainApp() {
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-semibold text-xs shrink-0 transition"
                               >
-                                Hỏi AI cách sửa →
+                                {t.askAiFixBtn}
                               </button>
                             </div>
                           </div>
@@ -3103,7 +3147,7 @@ export default function TEBrainApp() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Tìm theo Mã lỗi (ERR-...), Trạm test, từ khóa..."
+                      placeholder={t.searchPlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:outline-none pl-10 pr-4 py-2 text-xs sm:text-sm text-white"
                     />
                   </div>
@@ -3118,7 +3162,7 @@ export default function TEBrainApp() {
                           : "bg-slate-900 border-slate-800 text-slate-400"
                           }`}
                       >
-                        {cat}
+                        {cat === "Tất cả" ? t.allCategories : cat}
                       </button>
                     ))}
                   </div>
@@ -3198,7 +3242,7 @@ export default function TEBrainApp() {
                       : "text-slate-400 hover:text-slate-200"
                       }`}
                   >
-                    Thống kê Token
+                    {t.tabTokens}
                   </button>
 
                   <button
@@ -3209,7 +3253,7 @@ export default function TEBrainApp() {
                       : "text-slate-400 hover:text-slate-200"
                       }`}
                   >
-                    Dung lượng DB
+                    {t.tabDatabase}
                   </button>
 
                   <button
@@ -3220,7 +3264,7 @@ export default function TEBrainApp() {
                       : "text-slate-400 hover:text-slate-200"
                       }`}
                   >
-                    Chọn Model AI
+                    {t.tabModels}
                   </button>
                 </div>
 
@@ -3686,7 +3730,7 @@ export default function TEBrainApp() {
               }`}
           >
             <Bot className="w-5 h-5" />
-            <span className="text-[10px]">Chat AI</span>
+            <span className="text-[10px]">{t.navChat}</span>
           </button>
 
           <button
@@ -3697,7 +3741,7 @@ export default function TEBrainApp() {
               }`}
           >
             <BarChart3 className="w-5 h-5" />
-            <span className="text-[10px]">Phân tích</span>
+            <span className="text-[10px]">{t.navAnalytics}</span>
           </button>
 
           <button
@@ -3708,7 +3752,7 @@ export default function TEBrainApp() {
               }`}
           >
             <PlusCircle className="w-5 h-5" />
-            <span className="text-[10px]">Ghi nhanh</span>
+            <span className="text-[10px]">{t.navQuickNote}</span>
           </button>
 
           <button
@@ -3719,7 +3763,7 @@ export default function TEBrainApp() {
               }`}
           >
             <FolderKanban className="w-5 h-5" />
-            <span className="text-[10px]">Kho lưu</span>
+            <span className="text-[10px]">{t.navVault}</span>
             {stats.total > 0 && (
               <span className="absolute top-0.5 right-3 text-[9px] font-bold px-1.5 rounded-full bg-cyan-500 text-slate-950">
                 {stats.total}
@@ -3738,7 +3782,7 @@ export default function TEBrainApp() {
               }`}
           >
             <Settings className="w-5 h-5" />
-            <span className="text-[10px]">Hệ thống</span>
+            <span className="text-[10px]">{t.navSettings}</span>
           </button>
         </nav>
       </div>

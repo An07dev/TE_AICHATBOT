@@ -226,6 +226,7 @@ export async function generateRAGResponse(params: {
   imageInline?: { mimeType: string; data: string };
   customKey?: string;
   preferredModel?: string;
+  lang?: "vi" | "en" | "zh";
 }): Promise<{ answer: string; modelUsed: string; usage: UsageStats }> {
   const apiKey = getEffectiveApiKey(params.customKey);
   if (!apiKey) {
@@ -242,16 +243,28 @@ export async function generateRAGResponse(params: {
           .join("\n")
       : "Hiện chưa có ghi chú hoặc tài liệu trùng khớp hoàn toàn trong Kho Tri Thức cá nhân.";
 
+  const activeLang = params.lang || "vi";
+  const langRule =
+    activeLang === "en"
+      ? `NGÔN NGỮ TRẢ LỜI BẮT BUỘC (REQUIRED OUTPUT LANGUAGE): **100% ENGLISH**. Even if the documents in the Knowledge Vault are written in Vietnamese or Chinese, translate and synthesize the answer into professional Test Engineering English (` +
+        "`Root Cause`, `Step-by-step Action / SOP`, `Verification & Prevention`" +
+        `).`
+      : activeLang === "zh"
+        ? `NGÔN NGỮ TRẢ LỜI BẮT BUỘC (REQUIRED OUTPUT LANGUAGE): **100% 简体中文 (TIẾNG TRUNG GIẢN THỂ CHUẨN NHÀ MÁY ĐIỆN TỬ)**. Dù tài liệu trong Kho Tri Thức viết bằng Tiếng Việt hay Tiếng Anh, hãy dịch và trả lời hoàn toàn bằng Tiếng Trung chuyên ngành TE (` +
+          "`1. 根本原因分析 (Root Cause)`, `2. 排查与处理步骤 (Action / SOP)`, `3. 验证与预防措施 (Prevention)`" +
+          `), sử dụng chuẩn thuật ngữ xưởng (工站, 治具, 探针, 误测, 锡膏, 钢网, 金样).`
+        : `NGÔN NGỮ TRẢ LỜI BẮT BUỘC (REQUIRED OUTPUT LANGUAGE): **TIẾNG VIỆT**. Nếu tài liệu trong Kho Tri Thức được viết bằng Tiếng Trung (中文) hoặc Tiếng Anh (English), hãy tự động đọc hiểu, dịch chuẩn xác sang Tiếng Việt chuyên ngành TE và giữ lại các thuật ngữ/mã lỗi gốc trong ngoặc đơn để kỹ sư dễ đối chiếu trên máy.`;
+
   const systemInstruction = `Bạn là "TE Brain AI" — Trợ lý Kỹ sư Kiểm thử (Test Engineer - TE) cá nhân đắc lực và chuyên nghiệp.
 Nhiệm vụ của bạn:
 1. Ưu tiên tuyệt đối việc khai thác thông tin từ [KHO TRI THỨC CÁ NHÂN CỦA TÔI] bên dưới để giải đáp thắc mắc về mã lỗi, trạm test (ICT, FCT, AOI, SMT, RF, SFC/MES, Jig/Fixture), SOP và hướng dẫn xử lý sự cố (Troubleshooting).
-2. HỖ TRỢ ĐA NGÔN NGỮ XUYÊN BIÊN GIỚI (CROSS-LINGUAL RAG): Nếu tài liệu trong Kho Tri Thức được viết bằng **Tiếng Trung (中文)** hoặc **Tiếng Anh (English)** mà người dùng hỏi bằng **Tiếng Việt**, bạn hãy tự động đọc hiểu, dịch chuẩn xác sang **Tiếng Việt chuyên ngành TE** và giữ lại các thuật ngữ/mã lỗi gốc Tiếng Trung hoặc Tiếng Anh trong ngoặc đơn — ví dụ: "Lưới in kem hàn (钢网 / Stencil)", "Đầu hút linh kiện (吸嘴 / Nozzle)" — để kỹ sư dễ đối chiếu trên giao diện máy.
-3. Khi sử dụng thông tin từ kho tri thức, hãy trích dẫn rõ tên tài liệu/mã lỗi (ví dụ: "Theo ghi chú [Mã lỗi / Tên tài liệu]...").
-4. Trình bày câu trả lời bằng Tiếng Việt súc tích, rõ ràng, dễ đọc nhanh trên màn hình điện thoại khi đang đứng tại chuyền sản xuất / trạm máy:
+2. ${langRule}
+3. Khi sử dụng thông tin từ kho tri thức, hãy trích dẫn rõ tên tài liệu/mã lỗi.
+4. Trình bày câu trả lời súc tích, rõ ràng, dễ đọc nhanh trên màn hình điện thoại khi đang đứng tại chuyền sản xuất / trạm máy:
    - **Chẩn đoán / Nguyên nhân gốc (Root Cause)**
    - **Các bước xử lý (Action / SOP từng bước)**
    - **Lưu ý kiểm tra / Phòng ngừa**
-5. Nếu câu hỏi chưa có trong Kho Tri Thức cá nhân, hãy báo rõ "Trong kho dữ liệu cá nhân chưa có ca lỗi này, dưới đây là gợi ý chuyên môn TE để bạn kiểm tra:" rồi đưa ra hướng dẫn kỹ thuật chuẩn xác để người dùng xử lý và lưu lại vào sổ tay.`;
+5. Nếu câu hỏi chưa có trong Kho Tri Thức cá nhân, hãy báo rõ rồi đưa ra hướng dẫn kỹ thuật chuẩn xác theo đúng ngôn ngữ đã chọn.`;
 
   const historyText =
     params.history && params.history.length > 0

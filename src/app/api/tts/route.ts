@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-function splitTextIntoChunks(text: string, maxLen = 175): string[] {
+function splitTextIntoChunks(text: string, maxLen = 160): string[] {
   const sentences = text
     .replace(/\r\n/g, " ")
     .replace(/\n+/g, ". ")
-    .split(/(?<=[.!?।,;:])\s+/);
+    .split(/(?<=[.!?।,;:。！？；，])\s*/);
 
   const chunks: string[] = [];
   let current = "";
@@ -46,7 +46,7 @@ function splitTextIntoChunks(text: string, maxLen = 175): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { text } = await req.json();
+    const { text, lang } = await req.json();
     if (!text || !text.trim()) {
       return NextResponse.json(
         { success: false, error: "Không có nội dung cần đọc" },
@@ -54,11 +54,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const chunks = splitTextIntoChunks(text.trim(), 175);
+    const chunks = splitTextIntoChunks(text.trim(), 160);
     const buffers: Buffer[] = [];
+    const defaultTl =
+      lang === "zh" ? "zh-CN" : lang === "en" ? "en" : "vi";
 
     for (const chunk of chunks) {
-      const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=vi&client=gtx&q=${encodeURIComponent(
+      const hasChinese = /[\u4e00-\u9fff]/.test(chunk);
+      const tl = hasChinese ? "zh-CN" : defaultTl;
+      const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=${tl}&client=gtx&q=${encodeURIComponent(
         chunk
       )}`;
       const res = await fetch(url, {
