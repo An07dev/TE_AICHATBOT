@@ -1,0 +1,3644 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Bot,
+  PlusCircle,
+  FolderKanban,
+  Settings,
+  Send,
+  Upload,
+  Search,
+  Sparkles,
+  CheckCircle2,
+  AlertTriangle,
+  Cpu,
+  Trash2,
+  BookmarkPlus,
+  Camera,
+  X,
+  RefreshCw,
+  Database,
+  KeyRound,
+  Tag,
+  Wrench,
+  BookOpen,
+  ChevronRight,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Square,
+  BarChart3,
+  Download,
+  Copy,
+  Activity,
+  History,
+  FileText,
+  MessageSquarePlus,
+} from "lucide-react";
+import {
+  parseAndAnalyzeTestLog,
+  SAMPLE_FACTORY_CSV_LOG,
+  LogAnalysisResult,
+} from "@/lib/logAnalyzer";
+
+interface KnowledgeItemType {
+  _id: string;
+  title: string;
+  type: "note" | "document";
+  category: string;
+  errorCode?: string;
+  station?: string;
+  symptom?: string;
+  rootCause?: string;
+  solution?: string;
+  content: string;
+  fileName?: string;
+  fileType?: string;
+  tags: string[];
+  pinned: boolean;
+  hasEmbedding: boolean;
+  createdAt: string;
+}
+
+interface SourceRef {
+  id: string;
+  title: string;
+  type: string;
+  errorCode?: string;
+  station?: string;
+  score: number;
+}
+
+interface ChatMsg {
+  role: "user" | "assistant";
+  content: string;
+  sources?: SourceRef[];
+  modelUsed?: string;
+  imagePreview?: string;
+  createdAt?: string;
+}
+
+interface ChatSessionItem {
+  _id: string;
+  title: string;
+  messageCount: number;
+  updatedAt: string;
+  messages: ChatMsg[];
+}
+
+const TE_CATEGORIES = [
+  "ICT / FCT",
+  "SMT / AOI",
+  "RF / Wireless",
+  "SFC / MES",
+  "Fixture / Jig",
+  "SOP / Manual",
+  "Khác",
+];
+
+const AVAILABLE_MODELS = [
+  {
+    id: "gemini-3.6-flash",
+    name: "Gemini 3.6 Flash",
+    badge: "Khuyên dùng",
+    desc: "Cân bằng tốc độ & suy luận sâu (Thinking), đa phương thức",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemini-3.5-flash",
+    name: "Gemini 3.5 Flash",
+    badge: "Ổn định",
+    desc: "Độ ổn định cao, phản hồi mượt cho tra cứu SOP & mã lỗi",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    name: "Gemini 3.1 Flash Lite",
+    badge: "Tiết kiệm Token",
+    desc: "Phản hồi tức thì, tốn ít Token nhất (Không dùng Thinking)",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash Lite",
+    badge: "Nhẹ & Nhanh",
+    desc: "Bản rút gọn 3.5, tối ưu cho câu hỏi ngắn tại chuyền",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash",
+    badge: "Mới nhất",
+    desc: "Model Flash thế hệ 3.8 mới nhất của Google",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemma-4-31b-it",
+    name: "Gemma 4 31B IT",
+    badge: "Open Model",
+    desc: "Mô hình mở 31 tỷ tham số của Google",
+    context: "262,144",
+    output: "32,768",
+  },
+];
+
+const QUICK_PROMPTS = [
+  {
+    short: "Lỗi ERR-FCT-104 chập nguồn 3V3",
+    full: "Cách xử lý lỗi ERR-FCT-104 chập nguồn 3V3 trên trạm FCT-02?",
+  },
+  {
+    short: "Lỗi SFC-ERR-504 đẩy log MES",
+    full: "Trạm test báo lỗi SFC-ERR-504 không đẩy được log lên MES thì làm gì?",
+  },
+  {
+    short: "SOP hiệu chuẩn trạm RF",
+    full: "Quy trình hiệu chuẩn Path Loss và Golden Sample cho trạm RF?",
+  },
+  {
+    short: "Checklist giảm False Fail FCT",
+    full: "Gợi ý checklist kiểm tra khi tỷ lệ False Fail tăng cao tại trạm FCT",
+  },
+];
+
+function FormattedMessage({
+  content,
+  isUser,
+}: {
+  content: string;
+  isUser: boolean;
+}) {
+  const renderInline = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*|`[^`]+`|\*[^*\n]+\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+        return (
+          <strong
+            key={idx}
+            className={
+              isUser ? "font-bold text-white" : "font-semibold text-cyan-200"
+            }
+          >
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+        return (
+          <code
+            key={idx}
+            className="px-1.5 py-0.5 mx-0.5 rounded bg-slate-800/90 border border-slate-700 text-amber-300 font-mono text-[12px]"
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return (
+          <em key={idx} className="italic text-slate-200">
+            {part.slice(1, -1)}
+          </em>
+        );
+      }
+      return <React.Fragment key={idx}>{part}</React.Fragment>;
+    });
+  };
+
+  const lines = content.split("\n");
+
+  return (
+    <div className="space-y-1.5 text-[13.5px] leading-relaxed">
+      {lines.map((rawLine, i) => {
+        const line = rawLine.trim();
+        if (!line || line === "---") {
+          return <div key={i} className="h-1" />;
+        }
+
+        if (
+          line.startsWith("### ") ||
+          line.startsWith("## ") ||
+          line.startsWith("# ")
+        ) {
+          const cleanHeading = line.replace(/^#+\s*/, "");
+          return (
+            <h4
+              key={i}
+              className="font-bold text-cyan-300 text-sm pt-2 pb-0.5 border-b border-slate-800/80"
+            >
+              {renderInline(cleanHeading)}
+            </h4>
+          );
+        }
+
+        if (line.startsWith("* ") || line.startsWith("- ")) {
+          return (
+            <div key={i} className="flex items-start gap-2 pl-1">
+              <span className="text-cyan-400 font-bold mt-0.5">•</span>
+              <div className="flex-1">{renderInline(line.slice(2))}</div>
+            </div>
+          );
+        }
+
+        const numMatch = line.match(/^(\d+\.)\s+(.*)/);
+        if (numMatch) {
+          return (
+            <div key={i} className="flex items-start gap-2 pl-1">
+              <span className="text-cyan-400 font-semibold shrink-0">
+                {numMatch[1]}
+              </span>
+              <div className="flex-1">{renderInline(numMatch[2])}</div>
+            </div>
+          );
+        }
+
+        return (
+          <p key={i} className="break-words">
+            {renderInline(rawLine)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function TEBrainApp() {
+  const [activeTab, setActiveTab] = useState<
+    "chat" | "analytics" | "quick-note" | "vault" | "settings"
+  >("chat");
+
+  // Sub-tabs for clean, uncluttered views
+  const [chatSubTab, setChatSubTab] = useState<
+    "conversation" | "history" | "report"
+  >("conversation");
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<
+    "pareto" | "cpk" | "ai-report"
+  >("pareto");
+  const [settingsSubTab, setSettingsSubTab] = useState<
+    "models" | "tokens" | "database"
+  >("tokens");
+
+  // Session History & Incident Report state
+  const [chatSessions, setChatSessions] = useState<ChatSessionItem[]>([]);
+  const [reportType, setReportType] = useState<"handover" | "8d">("handover");
+  const [reportLang, setReportLang] = useState<"vi" | "en" | "zh">("vi");
+  const [generatedReport, setGeneratedReport] = useState<string>("");
+  const [reportModelUsed, setReportModelUsed] = useState<string>("");
+  const [reportExtractedNote, setReportExtractedNote] = useState<{
+    title: string;
+    category: string;
+    errorCode: string;
+    station: string;
+    tags: string;
+  } | null>(null);
+  const [reportLoading, setReportLoading] = useState<boolean>(false);
+  const [savingReportToVault, setSavingReportToVault] =
+    useState<boolean>(false);
+
+  // Log Analytics state
+  const [logResult, setLogResult] = useState<LogAnalysisResult | null>(() => {
+    try {
+      return parseAndAnalyzeTestLog(
+        SAMPLE_FACTORY_CSV_LOG,
+        "FCT02_RF_ShiftA_Log.csv"
+      );
+    } catch {
+      return null;
+    }
+  });
+  const [aiLogReport, setAiLogReport] = useState<string>("");
+  const [aiLogSources, setAiLogSources] = useState<SourceRef[]>([]);
+  const [aiLogLoading, setAiLogLoading] = useState<boolean>(false);
+  const logFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Knowledge state
+  const [items, setItems] = useState<KnowledgeItemType[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    notes: 0,
+    documents: 0,
+    vectorized: 0,
+  });
+  const [loadingKnowledge, setLoadingKnowledge] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Tất cả");
+  const [selectedItemModal, setSelectedItemModal] =
+    useState<KnowledgeItemType | null>(null);
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMsg[]>([
+    {
+      role: "assistant",
+      content:
+        "Chào Kỹ sư TE! Tôi là **TE Brain AI** — trợ lý cá nhân đã kết nối trực tiếp với **MongoDB** và **Gemini RAG**.\n\nBạn có thể chạm vào câu hỏi mẫu, bấm **Mic 🎙️** để nói tiếng Việt, hoặc gửi **Mã lỗi / Ảnh chụp màn hình** để tra cứu ngay!",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+  const [attachedImage, setAttachedImage] = useState<{
+    mimeType: string;
+    data: string;
+    preview: string;
+  } | null>(null);
+
+  // Voice & TTS state
+  const [isListening, setIsListening] = useState(false);
+  const [voiceTarget, setVoiceTarget] = useState<
+    "chat" | "symptom" | "rootCause" | "solution"
+  >("chat");
+  const [transcribingAudio, setTranscribingAudio] = useState(false);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const [autoReadTTS, setAutoReadTTS] = useState<boolean>(false);
+  const [handsFreeAutoSend, setHandsFreeAutoSend] = useState<boolean>(false);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // Quick Note Form state
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteCategory, setNoteCategory] = useState("ICT / FCT");
+  const [noteErrorCode, setNoteErrorCode] = useState("");
+  const [noteStation, setNoteStation] = useState("");
+  const [noteSymptom, setNoteSymptom] = useState("");
+  const [noteRootCause, setNoteRootCause] = useState("");
+  const [noteSolution, setNoteSolution] = useState("");
+  const [noteTags, setNoteTags] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Upload File state
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadCategory, setUploadCategory] = useState("SOP / Manual");
+  const [uploadStation, setUploadStation] = useState("");
+  const [uploadTags, setUploadTags] = useState("");
+
+  // Settings state
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-3.6-flash");
+  const [systemStatus, setSystemStatus] = useState({
+    mongodbConnected: true,
+    geminiConfigured: true,
+    maskedKey: "AQ.Ab8R...fgPg",
+    totalKnowledge: 0,
+  });
+  const [tokenTelemetry, setTokenTelemetry] = useState({
+    activeModel: "gemini-3.6-flash",
+    limits: {
+      inputTokenLimit: 1048576,
+      outputTokenLimit: 65536,
+      freeTierRpdLimit: 1500,
+      freeTierTpmLimit: 1000000,
+      dailyTokenQuota: 1500000,
+    },
+    today: {
+      requests: 0,
+      promptTokens: 0,
+      candidatesTokens: 0,
+      thoughtsTokens: 0,
+      totalTokens: 0,
+    },
+    allTime: {
+      requests: 0,
+      promptTokens: 0,
+      candidatesTokens: 0,
+      thoughtsTokens: 0,
+      totalTokens: 0,
+    },
+    recentLogs: [] as Array<{
+      id: string;
+      actionType: "chat" | "embedding" | "extract";
+      modelName: string;
+      promptTokens: number;
+      candidatesTokens: number;
+      thoughtsTokens: number;
+      totalTokens: number;
+      createdAt: string;
+    }>,
+  });
+  const [dbStorage, setDbStorage] = useState({
+    dbName: "te_brain_db",
+    collections: 0,
+    objects: 0,
+    dataSize: 0,
+    storageSize: 0,
+    indexSize: 0,
+    totalDbSize: 0,
+    fsUsedSize: 0,
+    fsTotalSize: 0,
+    fsFreeSize: 0,
+    atlasFreeLimitBytes: 512 * 1024 * 1024,
+    atlasFreeRemainingBytes: 512 * 1024 * 1024,
+  });
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes <= 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  };
+
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const visionInputRef = useRef<HTMLInputElement>(null);
+  const [visionScanning, setVisionScanning] = useState(false);
+  const [visionPreview, setVisionPreview] = useState<string | null>(null);
+
+  const compressImageFile = (
+    file: File
+  ): Promise<{ mimeType: string; data: string; preview: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Không thể đọc file ảnh"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Định dạng ảnh không hợp lệ"));
+        img.onload = () => {
+          const maxDim = 1280;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            const raw = String(reader.result);
+            resolve({
+              mimeType: file.type || "image/jpeg",
+              data: raw.split(",")[1],
+              preview: raw,
+            });
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          resolve({
+            mimeType: "image/jpeg",
+            data: dataUrl.split(",")[1],
+            preview: dataUrl,
+          });
+        };
+        img.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  const fetchKnowledge = async () => {
+    try {
+      setLoadingKnowledge(true);
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const res = await fetch("/api/knowledge", {
+        headers: savedKey ? { "x-gemini-key": savedKey } : {},
+      });
+      const data = await res.json();
+      if (data.success) {
+        setItems(data.items || []);
+        setStats(
+          data.stats || { total: 0, notes: 0, documents: 0, vectorized: 0 }
+        );
+      }
+    } catch (e) {
+      console.error("Failed to load knowledge:", e);
+    } finally {
+      setLoadingKnowledge(false);
+    }
+  };
+
+  const fetchSystemStatus = async (overrideModel?: string) => {
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const savedModel =
+        overrideModel ||
+        localStorage.getItem("te_brain_selected_model") ||
+        selectedModel ||
+        "gemini-3.6-flash";
+      const headers: Record<string, string> = {
+        "x-gemini-model": savedModel,
+      };
+      if (savedKey) headers["x-gemini-key"] = savedKey;
+
+      const res = await fetch("/api/chat", {
+        cache: "no-store",
+        headers,
+      });
+      const data = await res.json();
+      if (data.status) setSystemStatus(data.status);
+      if (data.tokenTelemetry) setTokenTelemetry(data.tokenTelemetry);
+      if (data.dbStorage) setDbStorage(data.dbStorage);
+      if (Array.isArray(data.sessions)) setChatSessions(data.sessions);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "settings" || dbStorage.totalDbSize === 0) {
+      fetchSystemStatus();
+    }
+  }, [activeTab, dbStorage.totalDbSize]);
+
+  useEffect(() => {
+    const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+    const savedModel =
+      localStorage.getItem("te_brain_selected_model") || "gemini-3.6-flash";
+    if (savedKey) setCustomApiKey(savedKey);
+    setSelectedModel(savedModel);
+    fetchKnowledge();
+    fetchSystemStatus(savedModel);
+  }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, chatLoading]);
+
+  const handleImageAttach = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      setAttachedImage(compressed);
+    } catch {
+      showToast("Không thể xử lý ảnh đính kèm", "error");
+    }
+  };
+
+  const handleVisionAutoFill = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setVisionScanning(true);
+    try {
+      const compressed = await compressImageFile(file);
+      setVisionPreview(compressed.preview);
+
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const res = await fetch("/api/vision-autofill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          imageBase64: compressed.data,
+          mimeType: compressed.mimeType,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể phân tích ảnh");
+      }
+
+      const f = data.fields || {};
+      if (f.title) setNoteTitle(f.title);
+      if (f.category && TE_CATEGORIES.includes(f.category)) {
+        setNoteCategory(f.category);
+      }
+      if (f.errorCode) setNoteErrorCode(f.errorCode);
+      if (f.station) setNoteStation(f.station);
+      if (f.symptom) setNoteSymptom(f.symptom);
+      if (f.rootCause) setNoteRootCause(f.rootCause);
+      if (f.solution) setNoteSolution(f.solution);
+      if (f.tags) setNoteTags(f.tags);
+
+      showToast(
+        `📸 Đã quét ảnh (${data.visionModelUsed}) & tự động điền toàn bộ Form!`
+      );
+      fetchSystemStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi khi quét ảnh";
+      showToast(msg, "error");
+    } finally {
+      setVisionScanning(false);
+      if (visionInputRef.current) visionInputRef.current.value = "";
+    }
+  };
+
+  const handleSendMessage = async (presetQuestion?: string) => {
+    const q = (presetQuestion ?? chatInput).trim();
+    if (!q || chatLoading) return;
+
+    const currentImage = attachedImage;
+    const userMessage: ChatMsg = {
+      role: "user",
+      content: q,
+      imagePreview: currentImage?.preview,
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    if (!presetQuestion) setChatInput("");
+    setAttachedImage(null);
+    setChatLoading(true);
+
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const activeM =
+        localStorage.getItem("te_brain_selected_model") || selectedModel;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-gemini-model": activeM,
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          question: q,
+          selectedModel: activeM,
+          history: messages.slice(-6).map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          imageInline: currentImage
+            ? { mimeType: currentImage.mimeType, data: currentImage.data }
+            : undefined,
+          sessionId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể kết nối AI");
+      }
+
+      if (data.sessionId) setSessionId(data.sessionId);
+
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          {
+            role: "assistant" as const,
+            content: data.answer,
+            sources: data.sources || [],
+            modelUsed: data.modelUsed,
+          },
+        ];
+        if (autoReadTTS) {
+          setTimeout(() => speakMessage(data.answer, next.length - 1), 150);
+        }
+        return next;
+      });
+      fetchSystemStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Đã xảy ra lỗi";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `⚠️ **Lỗi kết nối:** ${msg}. Vui lòng kiểm tra lại trong mục Hệ thống.`,
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSaveQuickNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteTitle.trim()) {
+      showToast("Vui lòng nhập Tên lỗi hoặc Tiêu đề ghi chú!", "error");
+      return;
+    }
+
+    setSavingNote(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          title: noteTitle,
+          type: "note",
+          category: noteCategory,
+          errorCode: noteErrorCode,
+          station: noteStation,
+          symptom: noteSymptom,
+          rootCause: noteRootCause,
+          solution: noteSolution,
+          tags: noteTags,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể lưu ghi chú");
+      }
+
+      showToast("Đã nạp Ghi chú & tạo Vector AI thành công!");
+      setNoteTitle("");
+      setNoteErrorCode("");
+      setNoteStation("");
+      setNoteSymptom("");
+      setNoteRootCause("");
+      setNoteSolution("");
+      setNoteTags("");
+      setVisionPreview(null);
+      await fetchKnowledge();
+      setActiveTab("vault");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi khi lưu ghi chú";
+      showToast(msg, "error");
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+  const handleSaveChatAnswerToNote = (msg: ChatMsg, idx: number) => {
+    const prevUserQuestion =
+      idx > 0 && messages[idx - 1]?.role === "user"
+        ? messages[idx - 1].content
+        : "Kinh nghiệm xử lý sự cố từ AI";
+    setNoteTitle(prevUserQuestion.slice(0, 80));
+    setNoteSolution(msg.content);
+    setNoteTags("AI-Saved, Troubleshooting");
+    setActiveTab("quick-note");
+    showToast("Đã điền sẵn nội dung vào Sổ tay, hãy kiểm tra và bấm Lưu!");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", uploadCategory);
+      formData.append("station", uploadStation);
+      formData.append("tags", uploadTags);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: savedKey ? { "x-gemini-key": savedKey } : {},
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể xử lý file");
+      }
+
+      showToast(
+        `Đã nạp "${file.name}" (${data.chunksCreated} Vector) vào Kho Tri Thức!`
+      );
+      setUploadStation("");
+      setUploadTags("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await fetchKnowledge();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi khi tải file";
+      showToast(msg, "error");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    try {
+      const res = await fetch(`/api/knowledge?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setItems((prev) => prev.filter((item) => item._id !== id));
+        if (selectedItemModal?._id === id) setSelectedItemModal(null);
+        showToast("Đã xóa mục tri thức khỏi MongoDB.");
+      }
+    } catch {
+      showToast("Không thể xóa mục này.", "error");
+    }
+  };
+
+  const filteredItems = items.filter((item) => {
+    const matchesCategory =
+      selectedCategory === "Tất cả" || item.category === selectedCategory;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return matchesCategory;
+    const searchable =
+      `${item.title} ${item.errorCode || ""} ${item.station || ""} ${item.content} ${(item.tags || []).join(" ")}`.toLowerCase();
+    return matchesCategory && searchable.includes(q);
+  });
+
+  const openSourceDetail = (sourceId: string) => {
+    const found = items.find((i) => i._id === sourceId);
+    if (found) setSelectedItemModal(found);
+  };
+
+  // ================= LOG ANALYZER FUNCTIONS =================
+  const handleLogFileSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const analyzed = parseAndAnalyzeTestLog(text, file.name);
+      setLogResult(analyzed);
+      setAiLogReport("");
+      setAiLogSources([]);
+      setAnalyticsSubTab("pareto");
+      showToast(
+        `📊 Đã phân tích ${analyzed.totalRecords} lượt đo từ "${file.name}"!`
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Không thể đọc định dạng file log";
+      showToast(msg, "error");
+    } finally {
+      if (logFileInputRef.current) logFileInputRef.current.value = "";
+    }
+  };
+
+  const handleLoadSampleLog = () => {
+    try {
+      const analyzed = parseAndAnalyzeTestLog(
+        SAMPLE_FACTORY_CSV_LOG,
+        "FCT02_RF_ShiftA_Log.csv"
+      );
+      setLogResult(analyzed);
+      setAiLogReport("");
+      setAiLogSources([]);
+      showToast("⚡ Đã nạp dữ liệu Log mẫu (FCT-02 & RF)!");
+    } catch {
+      showToast("Lỗi nạp log mẫu", "error");
+    }
+  };
+
+  const handleDownloadSampleCsv = () => {
+    const blob = new Blob([SAMPLE_FACTORY_CSV_LOG], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "FCT02_RF_ShiftA_Sample.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("⬇️ Đã tải file mẫu FCT02_RF_ShiftA_Sample.csv!");
+  };
+
+  const handleGenerateLogAIReport = async () => {
+    if (!logResult || aiLogLoading) return;
+    setAnalyticsSubTab("ai-report");
+    setAiLogLoading(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const activeM =
+        localStorage.getItem("te_brain_selected_model") || selectedModel;
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-gemini-model": activeM,
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          question: logResult.aiSummaryPrompt,
+          selectedModel: activeM,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể tạo báo cáo AI");
+      }
+      setAiLogReport(data.answer);
+      setAiLogSources(data.sources || []);
+      fetchSystemStatus();
+      showToast("🤖 Đã tạo Báo cáo Bàn giao Ca thành công!");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Lỗi khi phân tích bằng AI";
+      showToast(msg, "error");
+    } finally {
+      setAiLogLoading(false);
+    }
+  };
+
+  // ================= SESSION HISTORY & INCIDENT REPORT FUNCTIONS =================
+  const handleStartNewSession = () => {
+    stopSpeaking();
+    setSessionId(undefined);
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "Chào Kỹ sư TE! Tôi là **TE Brain AI** — trợ lý cá nhân đã kết nối trực tiếp với **MongoDB** và **Gemini RAG**.\n\nBạn có thể chạm vào câu hỏi mẫu, bấm **Mic 🎙️** để nói tiếng Việt, hoặc gửi **Mã lỗi / Ảnh chụp màn hình** để tra cứu ngay!",
+      },
+    ]);
+    setGeneratedReport("");
+    setReportExtractedNote(null);
+    setChatSubTab("conversation");
+    showToast("➕ Đã mở phiên hỗ trợ kỹ thuật mới!");
+  };
+
+  const handleOpenSession = (
+    session: ChatSessionItem,
+    jumpToReport = false
+  ) => {
+    stopSpeaking();
+    setSessionId(session._id);
+    if (Array.isArray(session.messages) && session.messages.length > 0) {
+      setMessages(session.messages);
+    }
+    setGeneratedReport("");
+    setReportExtractedNote(null);
+    if (jumpToReport) {
+      setChatSubTab("report");
+      showToast(`📋 Đã nạp phiên "${session.title}" để xuất báo cáo!`);
+    } else {
+      setChatSubTab("conversation");
+      showToast(`💬 Đã mở lại phiên "${session.title}"`);
+    }
+  };
+
+  const handleDeleteSession = async (id: string) => {
+    try {
+      const res = await fetch(`/api/chat?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setChatSessions((prev) => prev.filter((s) => s._id !== id));
+        if (sessionId === id) {
+          setSessionId(undefined);
+        }
+        showToast("🗑️ Đã xóa phiên trò chuyện.");
+      }
+    } catch {
+      showToast("Không thể xóa phiên trò chuyện.", "error");
+    }
+  };
+
+  const handleClearAllSessions = async () => {
+    try {
+      const res = await fetch("/api/chat?all=true", { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setChatSessions([]);
+        setSessionId(undefined);
+        showToast("🗑️ Đã xóa toàn bộ lịch sử phiên chat.");
+      }
+    } catch {
+      showToast("Lỗi khi xóa toàn bộ lịch sử.", "error");
+    }
+  };
+
+  const handleGenerateIncidentReport = async (
+    overrideType?: "handover" | "8d",
+    overrideLang?: "vi" | "en" | "zh"
+  ) => {
+    const activeReportType = overrideType || reportType;
+    const activeReportLang = overrideLang || reportLang;
+    if (overrideType) setReportType(overrideType);
+    if (overrideLang) setReportLang(overrideLang);
+
+    // Filter out the initial default greeting if there are user messages
+    const realMessages = messages.filter(
+      (m, idx) =>
+        !(idx === 0 && m.role === "assistant" && messages.length > 1)
+    );
+
+    if (realMessages.length === 0 || (messages.length === 1 && messages[0].role === "assistant")) {
+      showToast(
+        "Chưa có nội dung hội thoại xử lý sự cố! Hãy chat với AI hoặc mở 1 phiên từ tab Lịch sử trước.",
+        "error"
+      );
+      return;
+    }
+
+    setReportLoading(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const currentSessionObj = chatSessions.find((s) => s._id === sessionId);
+      const sessionTitle =
+        currentSessionObj?.title ||
+        realMessages.find((m) => m.role === "user")?.content.slice(0, 60) ||
+        "Sự cố kỹ thuật trạm Test";
+
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          messages: realMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          reportType: activeReportType,
+          reportLang: activeReportLang,
+          sessionTitle,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể tổng hợp báo cáo");
+      }
+
+      setGeneratedReport(data.reportText);
+      setReportModelUsed(data.modelUsed || "gemini-3.6-flash");
+      if (data.extractedNote) {
+        setReportExtractedNote(data.extractedNote);
+      }
+      fetchSystemStatus();
+      const langLabel =
+        activeReportLang === "en"
+          ? "Tiếng Anh"
+          : activeReportLang === "zh"
+            ? "Tiếng Trung"
+            : "Tiếng Việt";
+      showToast(
+        activeReportType === "handover"
+          ? `📋 Đã tạo Báo cáo Giao Ca (${langLabel})!`
+          : `📑 Đã tạo Báo cáo 8D / CAPA (${langLabel})!`
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Lỗi khi tổng hợp báo cáo";
+      showToast(msg, "error");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleDownloadReportTxt = () => {
+    if (!generatedReport) return;
+    const blob = new Blob([generatedReport], {
+      type: "text/plain;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const prefix = reportType === "8d" ? "TE_8D_CAPA_Report" : "TE_Shift_Handover";
+    a.download = `${prefix}_${reportLang.toUpperCase()}_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("⬇️ Đã tải file báo cáo (.TXT) về máy!");
+  };
+
+  const handleSaveReportDirectlyToVault = async () => {
+    if (!generatedReport || savingReportToVault) return;
+    setSavingReportToVault(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const noteMeta = reportExtractedNote || {
+        title: `Báo cáo ${reportType === "8d" ? "8D/CAPA" : "Giao ca"} (${new Date().toLocaleDateString("vi-VN")})`,
+        category: "ICT / FCT",
+        errorCode: "",
+        station: "",
+        tags: "Report, 8D, Handover",
+      };
+
+      const mappedCategory = TE_CATEGORIES.includes(noteMeta.category)
+        ? noteMeta.category
+        : "ICT / FCT";
+
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          title: noteMeta.title,
+          type: "note",
+          category: mappedCategory,
+          errorCode: noteMeta.errorCode,
+          station: noteMeta.station,
+          symptom: "",
+          rootCause: "",
+          solution: generatedReport,
+          tags: noteMeta.tags,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể lưu vào Kho Tri Thức");
+      }
+
+      await fetchKnowledge();
+      fetchSystemStatus();
+      showToast("🧠 Đã lưu biên bản sự cố & tạo Vector vào Kho Tri Thức RAG!");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Lỗi khi lưu báo cáo vào Sổ tay";
+      showToast(msg, "error");
+    } finally {
+      setSavingReportToVault(false);
+    }
+  };
+
+  // ================= VOICE & TTS FUNCTIONS =================
+  const cleanTextForSpeech = (raw: string) => {
+    return raw
+      .replace(/```[\s\S]*?```/g, " đoạn mã ")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/\*([^*]+)\*/g, "$1")
+      .replace(/^#+\s*/gm, "")
+      .replace(/\[([^\]]+)\]/g, "$1")
+      .replace(/[-•]/g, " ")
+      .replace(/\n+/g, ". ")
+      .trim();
+  };
+
+  const stopSpeaking = () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current.currentTime = 0;
+      audioPlayerRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeakingIdx(null);
+  };
+
+  const speakMessage = async (text: string, idx: number) => {
+    if (speakingIdx === idx) {
+      stopSpeaking();
+      return;
+    }
+
+    stopSpeaking();
+    const cleaned = cleanTextForSpeech(text);
+    if (!cleaned) return;
+
+    setSpeakingIdx(idx);
+
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleaned }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.audioBase64) {
+        const audio = new Audio(
+          `data:${data.mimeType || "audio/mpeg"};base64,${data.audioBase64}`
+        );
+        audio.playbackRate = 1.08;
+        audio.onended = () => {
+          setSpeakingIdx(null);
+          audioPlayerRef.current = null;
+        };
+        audio.onerror = () => {
+          setSpeakingIdx(null);
+          audioPlayerRef.current = null;
+        };
+        audioPlayerRef.current = audio;
+        await audio.play();
+        return;
+      }
+    } catch {
+      // fallback
+    }
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(cleaned);
+      utterance.lang = "vi-VN";
+      utterance.rate = 1.05;
+      utterance.onend = () => setSpeakingIdx(null);
+      utterance.onerror = () => setSpeakingIdx(null);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      setSpeakingIdx(null);
+    }
+  };
+
+  const applyRecognizedText = (
+    transcript: string,
+    target: "chat" | "symptom" | "rootCause" | "solution",
+    shouldAutoSend: boolean
+  ) => {
+    const clean = transcript.trim();
+    if (!clean) return;
+
+    if (target === "chat") {
+      if (shouldAutoSend) {
+        setChatInput("");
+        handleSendMessage(clean);
+      } else {
+        setChatInput((prev) => (prev ? `${prev} ${clean}` : clean));
+      }
+    } else if (target === "symptom") {
+      setNoteSymptom((prev) => (prev ? `${prev} ${clean}` : clean));
+    } else if (target === "rootCause") {
+      setNoteRootCause((prev) => (prev ? `${prev} ${clean}` : clean));
+    } else if (target === "solution") {
+      setNoteSolution((prev) => (prev ? `${prev}\n${clean}` : clean));
+    }
+  };
+
+  const stopVoiceInput = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {
+        // ignore
+      }
+    }
+    setIsListening(false);
+  };
+
+  const startGeminiAudioFallback = async (
+    target: "chat" | "symptom" | "rootCause" | "solution"
+  ) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        if (audioBlob.size < 200) {
+          setIsListening(false);
+          return;
+        }
+
+        setTranscribingAudio(true);
+        try {
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64String = String(reader.result).split(",")[1];
+            const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+            const res = await fetch("/api/voice", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+              },
+              body: JSON.stringify({
+                audioBase64: base64String,
+                mimeType: recorder.mimeType || "audio/webm",
+              }),
+            });
+            const data = await res.json();
+            if (data.success && data.transcript) {
+              applyRecognizedText(data.transcript, target, handsFreeAutoSend);
+              showToast(`🎙️ Đã nhận diện: "${data.transcript.slice(0, 45)}"`);
+              fetchSystemStatus();
+            } else {
+              showToast(
+                data.error || "Không nghe rõ, vui lòng nói lại.",
+                "error"
+              );
+            }
+            setTranscribingAudio(false);
+          };
+          reader.readAsDataURL(audioBlob);
+        } catch {
+          setTranscribingAudio(false);
+          showToast("Lỗi chuyển giọng nói thành văn bản.", "error");
+        }
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setVoiceTarget(target);
+      setIsListening(true);
+      showToast("🎙️ Đang ghi âm... Chạm lại nút Mic khi nói xong!");
+    } catch {
+      showToast("Vui lòng cấp quyền Micro cho trình duyệt!", "error");
+    }
+  };
+
+  const toggleVoiceInput = (
+    target: "chat" | "symptom" | "rootCause" | "solution" = "chat"
+  ) => {
+    stopSpeaking();
+
+    if (isListening) {
+      stopVoiceInput();
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRec =
+      typeof window !== "undefined"
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).SpeechRecognition ||
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (window as any).webkitSpeechRecognition
+        : null;
+
+    if (SpeechRec) {
+      try {
+        const recognition = new SpeechRec();
+        recognition.lang = "vi-VN";
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          setVoiceTarget(target);
+          setIsListening(true);
+          showToast("🎙️ Đang nghe tiếng Việt...");
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onresult = (event: any) => {
+          const transcript = event?.results?.[0]?.[0]?.transcript || "";
+          if (transcript) {
+            applyRecognizedText(transcript, target, handsFreeAutoSend);
+          }
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        recognition.onerror = (event: any) => {
+          setIsListening(false);
+          if (event?.error === "not-allowed") {
+            showToast("Vui lòng cho phép quyền sử dụng Micro!", "error");
+          } else if (event?.error !== "aborted") {
+            startGeminiAudioFallback(target);
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          recognitionRef.current = null;
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        return;
+      } catch {
+        // fallback
+      }
+    }
+
+    startGeminiAudioFallback(target);
+  };
+
+  return (
+    <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex justify-center overflow-hidden">
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-3 z-50 px-4 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2 text-xs font-medium transition-all duration-300 max-w-[92vw] ${
+            toast.type === "success"
+              ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200"
+              : "bg-rose-950/95 border-rose-500/50 text-rose-200"
+          }`}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          )}
+          <span>{toast.text}</span>
+        </div>
+      )}
+
+      {/* App Shell */}
+      <div className="w-full max-w-3xl h-dvh flex flex-col bg-[#0b111e] border-x border-slate-800/60 overflow-hidden">
+        {/* 1. Sleek Top Header */}
+        <header className="shrink-0 bg-[#0b111e]/95 backdrop-blur-md border-b border-slate-800/80 px-3 py-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
+              <Cpu className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-bold text-xs sm:text-sm tracking-tight text-white truncate">
+                TE Brain AI
+              </h1>
+              <p className="text-[10px] text-slate-400 flex items-center gap-1 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Online
+                </span>
+                <span>•</span>
+                <span className="text-cyan-300/90">{stats.total} mục</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <select
+              value={selectedModel}
+              onChange={(e) => {
+                const m = e.target.value;
+                setSelectedModel(m);
+                localStorage.setItem("te_brain_selected_model", m);
+                fetchSystemStatus(m);
+                showToast(`Đã chọn Model: ${m}`);
+              }}
+              className="h-7.5 px-2 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] font-mono text-cyan-300 focus:outline-none cursor-pointer"
+            >
+              {AVAILABLE_MODELS.map((m) => (
+                <option
+                  key={m.id}
+                  value={m.id}
+                  className="bg-slate-900 text-slate-100"
+                >
+                  {m.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => {
+                fetchKnowledge();
+                fetchSystemStatus();
+                showToast("Đã làm mới dữ liệu!");
+              }}
+              className="h-7.5 w-7.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700/80 flex items-center justify-center transition"
+              title="Làm mới"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* 2. Main Content Area */}
+        {activeTab === "chat" ? (
+          /* ================= TAB 1: AI CHATBOT + SESSION HISTORY + 8D/HANDOVER REPORT ================= */
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {/* Single Slim Top Toolbar (Combines Sub-tabs & Quick Icon Actions in 1 row) */}
+            <div className="shrink-0 bg-slate-950/85 border-b border-slate-800/80 px-2.5 py-1.5 flex items-center justify-between gap-1.5">
+              {/* Left: 3 Compact Sub-Tabs */}
+              <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-xl border border-slate-800 min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => setChatSubTab("conversation")}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
+                    chatSubTab === "conversation"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Bot className="w-3.5 h-3.5 shrink-0" />
+                  <span>Chat</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChatSubTab("history");
+                    fetchSystemStatus();
+                  }}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
+                    chatSubTab === "history"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5 shrink-0" />
+                  <span>Lịch sử ({chatSessions.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChatSubTab("report")}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
+                    chatSubTab === "report"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span>Báo cáo</span>
+                </button>
+              </div>
+
+              {/* Right: Compact Icon Controls (Auto-Read, Hands-Free, New Chat) */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !autoReadTTS;
+                    setAutoReadTTS(next);
+                    if (!next) stopSpeaking();
+                    showToast(
+                      next
+                        ? "🔊 Đã BẬT tự động đọc câu trả lời!"
+                        : "🔇 Đã TẮT tự động đọc."
+                    );
+                  }}
+                  title={`Tự động đọc: ${autoReadTTS ? "BẬT" : "TẮT"}`}
+                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${
+                    autoReadTTS
+                      ? "bg-emerald-500/20 border-emerald-400 text-emerald-300"
+                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {autoReadTTS ? (
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !handsFreeAutoSend;
+                    setHandsFreeAutoSend(next);
+                    if (next) setAutoReadTTS(true);
+                    showToast(
+                      next
+                        ? "🎙️ Đã BẬT Rảnh tay (Nói xong tự gửi & đọc)!"
+                        : "Đã TẮT chế độ Rảnh tay."
+                    );
+                  }}
+                  title={`Rảnh tay: ${handsFreeAutoSend ? "BẬT" : "TẮT"}`}
+                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${
+                    handsFreeAutoSend
+                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleStartNewSession}
+                  title="Tạo phiên trò chuyện mới"
+                  className="h-7.5 w-7.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-cyan-300 flex items-center justify-center transition"
+                >
+                  <MessageSquarePlus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* ================= SUB-TAB 1: ACTIVE CONVERSATION ================= */}
+            {chatSubTab === "conversation" && (
+              <>
+                {/* Scrollable Messages Area */}
+                <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5">
+                  {/* Show Quick Prompts ONLY when user hasn't sent any question yet */}
+                  {!messages.some((m) => m.role === "user") && (
+                    <div className="space-y-1.5 pb-1">
+                      <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-cyan-400" />
+                        Chạm để hỏi nhanh:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {QUICK_PROMPTS.map((item, i) => (
+                          <button
+                            key={i}
+                            onClick={() => handleSendMessage(item.full)}
+                            disabled={chatLoading}
+                            className="text-left px-2.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800/90 hover:border-cyan-500/40 text-[11px] text-slate-200 transition flex items-center justify-between gap-1"
+                          >
+                            <span className="truncate font-medium">
+                              {item.short}
+                            </span>
+                            <ChevronRight className="w-3 h-3 text-cyan-400 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Message List */}
+                  {messages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col ${
+                        msg.role === "user" ? "items-end" : "items-start"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[92%] sm:max-w-[85%] rounded-2xl px-3.5 py-3 shadow-md ${
+                          msg.role === "user"
+                            ? "bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-xs"
+                            : "bg-slate-900/95 border border-slate-800 text-slate-100 rounded-bl-xs"
+                        }`}
+                      >
+                        {msg.imagePreview && (
+                          <div className="mb-2">
+                            <img
+                              src={msg.imagePreview}
+                              alt="Uploaded TE capture"
+                              className="max-h-44 rounded-xl border border-white/20 object-cover"
+                            />
+                          </div>
+                        )}
+
+                        <FormattedMessage
+                          content={msg.content}
+                          isUser={msg.role === "user"}
+                        />
+
+                        {/* Cited Sources */}
+                        {msg.role === "assistant" &&
+                          msg.sources &&
+                          msg.sources.length > 0 && (
+                            <div className="mt-3 pt-2.5 border-t border-slate-800/90 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
+                                  <BookOpen className="w-3 h-3" />
+                                  Nguồn trích dẫn ({msg.sources.length})
+                                </span>
+                                {msg.modelUsed && (
+                                  <span className="text-[10px] font-mono text-slate-500">
+                                    {msg.modelUsed}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                {msg.sources.map((src, sIdx) => (
+                                  <button
+                                    key={sIdx}
+                                    onClick={() => openSourceDetail(src.id)}
+                                    className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/90 hover:bg-cyan-950/50 border border-slate-800 hover:border-cyan-500/40 text-xs text-slate-200 transition"
+                                  >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      {src.errorCode && (
+                                        <span className="font-mono font-bold text-amber-400 shrink-0">
+                                          [{src.errorCode}]
+                                        </span>
+                                      )}
+                                      <span className="truncate">
+                                        {src.title}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-mono shrink-0">
+                                      {Math.min(99, Math.round(src.score * 100))}
+                                      %
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        {/* Action Bar under Assistant Message */}
+                        {msg.role === "assistant" && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                            <button
+                              type="button"
+                              onClick={() => speakMessage(msg.content, idx)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition ${
+                                speakingIdx === idx
+                                  ? "bg-rose-500/20 border-rose-400 text-rose-300 animate-pulse"
+                                  : "bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-cyan-300"
+                              }`}
+                            >
+                              {speakingIdx === idx ? (
+                                <>
+                                  <Square className="w-3 h-3 fill-current" />
+                                  <span>Dừng đọc</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                  <span>Nghe hướng dẫn</span>
+                                </>
+                              )}
+                            </button>
+
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleSaveChatAnswerToNote(msg, idx)
+                                }
+                                className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300 transition"
+                              >
+                                <BookmarkPlus className="w-3.5 h-3.5" />
+                                <span>Lưu vào Sổ tay</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {chatLoading && (
+                    <div className="flex items-start">
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl rounded-bl-xs px-3.5 py-2.5 text-xs text-slate-300 flex items-center gap-2">
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400 border-t-transparent animate-spin shrink-0" />
+                        <span>Đang tra cứu Kho Tri Thức & phân tích...</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Bottom Chat Input Bar */}
+                <div className="shrink-0 bg-[#0b111e] border-t border-slate-800/90 px-3 py-2">
+                  {attachedImage && (
+                    <div className="mb-2 inline-flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl p-1.5 pr-3">
+                      <img
+                        src={attachedImage.preview}
+                        alt="Preview"
+                        className="w-9 h-9 rounded-lg object-cover"
+                      />
+                      <span className="text-xs text-cyan-300">
+                        Đã đính kèm ảnh màn hình lỗi
+                      </span>
+                      <button
+                        onClick={() => setAttachedImage(null)}
+                        className="p-1 text-slate-400 hover:text-rose-400"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {(isListening || transcribingAudio) &&
+                    voiceTarget === "chat" && (
+                      <div className="mb-2 flex items-center justify-between bg-rose-950/80 border border-rose-500/50 rounded-xl px-3 py-1.5 text-xs text-rose-200">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                          <span>
+                            {transcribingAudio
+                              ? "Đang chuyển giọng nói thành văn bản..."
+                              : "Đang nghe tiếng Việt... (Chạm lại Mic khi xong)"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={stopVoiceInput}
+                          className="px-2 py-0.5 rounded bg-rose-500/30 text-white font-semibold text-[11px]"
+                        >
+                          Xong
+                        </button>
+                      </div>
+                    )}
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }}
+                    className="flex items-center gap-1.5"
+                  >
+                    <input
+                      ref={cameraInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageAttach}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      title="Đính kèm ảnh lỗi"
+                      className="h-10 w-10 rounded-xl bg-slate-800/90 hover:bg-slate-800 text-cyan-400 border border-slate-700/80 flex items-center justify-center shrink-0 transition"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleVoiceInput("chat")}
+                      disabled={transcribingAudio}
+                      title="Nói bằng giọng nói"
+                      className={`h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 transition ${
+                        isListening && voiceTarget === "chat"
+                          ? "bg-rose-600 border-rose-400 text-white animate-pulse"
+                          : "bg-slate-800/90 hover:bg-slate-800 text-emerald-400 border-slate-700/80"
+                      }`}
+                    >
+                      {isListening && voiceTarget === "chat" ? (
+                        <MicOff className="w-4 h-4" />
+                      ) : (
+                        <Mic className="w-4 h-4" />
+                      )}
+                    </button>
+
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Nhập mã lỗi hoặc bấm Mic để nói..."
+                      className="flex-1 h-10 rounded-xl bg-slate-900 border border-slate-700/90 focus:border-cyan-500 focus:outline-none px-3 text-xs sm:text-sm text-white placeholder-slate-400 min-w-0"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="h-10 w-10 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-white flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/20 transition"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+              </>
+            )}
+
+            {/* ================= SUB-TAB 2: SESSION HISTORY MANAGER ================= */}
+            {chatSubTab === "history" && (
+              <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-3">
+                {/* Top Action Bar */}
+                <div className="flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-white">
+                      Lịch sử Phiên Hỗ Trợ Kỹ Thuật
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Đã lưu {chatSessions.length} phiên trong MongoDB
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleStartNewSession}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition"
+                    >
+                      <MessageSquarePlus className="w-3.5 h-3.5" />
+                      <span>Phiên mới</span>
+                    </button>
+
+                    {chatSessions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllSessions}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/40 text-xs text-slate-300 hover:text-rose-300 transition"
+                        title="Xóa toàn bộ lịch sử"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Session Cards List */}
+                {chatSessions.length === 0 ? (
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 text-center space-y-2">
+                    <History className="w-8 h-8 text-slate-500 mx-auto" />
+                    <p className="text-xs font-semibold text-slate-300">
+                      Chưa có phiên hội thoại nào được lưu
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Khi bạn trao đổi mã lỗi với AI, toàn bộ lịch sử từng ca sẽ
+                      tự động lưu tại đây để mở lại hoặc xuất báo cáo 8D.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {chatSessions.map((s) => {
+                      const isCurrent = sessionId === s._id;
+                      return (
+                        <div
+                          key={s._id}
+                          className={`rounded-2xl p-3.5 border transition space-y-2.5 ${
+                            isCurrent
+                              ? "bg-cyan-950/25 border-cyan-500/50"
+                              : "bg-slate-900 border-slate-800"
+                          }`}
+                        >
+                          {/* Row 1: Title + Status Badge */}
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="font-bold text-xs sm:text-sm text-white leading-snug">
+                              {s.title}
+                            </h4>
+                            {isCurrent && (
+                              <span className="px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] font-semibold shrink-0">
+                                Đang mở
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Row 2: Metadata (Vertical / Separated clearly) */}
+                          <div className="space-y-1 text-xs border-y border-slate-800/80 py-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400">
+                                Số lượt trao đổi:
+                              </span>
+                              <span className="font-mono font-semibold text-slate-200">
+                                {s.messageCount} tin nhắn
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400">
+                                Cập nhật lúc:
+                              </span>
+                              <span className="font-mono text-slate-300">
+                                {new Date(s.updatedAt).toLocaleString("vi-VN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Row 3: Clean Action Buttons */}
+                          <div className="flex items-center justify-between gap-2 pt-0.5">
+                            <div className="flex items-center gap-1.5 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSession(s, false)}
+                                className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-slate-700 transition flex items-center justify-center gap-1.5"
+                              >
+                                <Bot className="w-3.5 h-3.5" />
+                                <span>Mở lại chat</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSession(s, true)}
+                                className="flex-1 py-2 px-3 rounded-xl bg-indigo-600/25 hover:bg-indigo-600/35 text-xs font-semibold text-indigo-200 border border-indigo-500/40 transition flex items-center justify-center gap-1.5"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Xuất Báo Cáo</span>
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSession(s._id)}
+                              className="p-2 rounded-xl bg-slate-950 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-800 transition shrink-0"
+                              title="Xóa phiên này"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= SUB-TAB 3: 8D / SHIFT HANDOVER REPORT GENERATOR ================= */}
+            {chatSubTab === "report" && (
+              <div className="flex-1 overflow-y-auto px-3.5 py-3.5 space-y-3.5">
+                {/* Report Configuration Card */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-cyan-400" />
+                      Xuất Báo Cáo Sự Cố Tự Động Từ Phiên Chat
+                    </h3>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      AI sẽ tổng hợp toàn bộ mạch chẩn đoán hiện tại (
+                      {Math.max(0, messages.length - 1)} lượt trao đổi) thành
+                      biên bản chuẩn nhà máy.
+                    </p>
+                  </div>
+
+                  {/* Report Template Selector */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold text-slate-300 block">
+                      1. Chọn mẫu báo cáo cần xuất:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setReportType("handover")}
+                        className={`p-3 rounded-xl border text-left transition space-y-1 ${
+                          reportType === "handover"
+                            ? "bg-cyan-950/40 border-cyan-500 text-white"
+                            : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-cyan-300">
+                            📱 Mẫu Giao Ca Nhanh
+                          </span>
+                          {reportType === "handover" && (
+                            <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Ngắn gọn, gạch đầu dòng rõ ràng để Copy gửi Zalo /
+                          Teams / Line cho ca sau.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setReportType("8d")}
+                        className={`p-3 rounded-xl border text-left transition space-y-1 ${
+                          reportType === "8d"
+                            ? "bg-indigo-950/40 border-indigo-400 text-white"
+                            : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-indigo-300">
+                            📑 Mẫu Kỹ Thuật 8D / CAPA
+                          </span>
+                          {reportType === "8d" && (
+                            <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Đầy đủ D1 → D7 (Triệu chứng, Containment, Root Cause,
+                          Corrective & Preventive).
+                        </p>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Report Output Language Selector (3 Main Languages: VI / EN / ZH) */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-semibold text-slate-300 block">
+                      2. Chọn ngôn ngữ xuất báo cáo:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        {
+                          code: "vi" as const,
+                          flag: "🇻🇳",
+                          label: "Tiếng Việt",
+                          sub: "Nội bộ ca",
+                        },
+                        {
+                          code: "en" as const,
+                          flag: "🇺🇸",
+                          label: "Tiếng Anh",
+                          sub: "English",
+                        },
+                        {
+                          code: "zh" as const,
+                          flag: "🇨🇳",
+                          label: "Tiếng Trung",
+                          sub: "简体中文",
+                        },
+                      ].map((lang) => (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => setReportLang(lang.code)}
+                          className={`py-2 px-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 ${
+                            reportLang === lang.code
+                              ? "bg-cyan-500/20 border-cyan-400 text-white shadow-sm"
+                              : "bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                          }`}
+                        >
+                          <span className="text-xs font-bold flex items-center gap-1">
+                            <span>{lang.flag}</span>
+                            <span>{lang.label}</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {lang.sub}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generate Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateIncidentReport()}
+                    disabled={reportLoading}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition"
+                  >
+                    {reportLoading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>
+                          Đang tổng hợp báo cáo{" "}
+                          {reportType === "8d" ? "8D / CAPA" : "Giao ca"} (
+                          {reportLang === "en"
+                            ? "Tiếng Anh"
+                            : reportLang === "zh"
+                              ? "Tiếng Trung"
+                              : "Tiếng Việt"}
+                          )...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>
+                          Tổng hợp{" "}
+                          {reportType === "8d"
+                            ? "Báo Cáo 8D / CAPA"
+                            : "Báo Cáo Giao Ca"}{" "}
+                          (
+                          {reportLang === "en"
+                            ? "Tiếng Anh"
+                            : reportLang === "zh"
+                              ? "Tiếng Trung"
+                              : "Tiếng Việt"}
+                          )
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Generated Report Result & 1-Click Actions */}
+                {generatedReport ? (
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                      <div>
+                        <span className="text-xs font-bold text-emerald-300 block">
+                          {reportType === "8d"
+                            ? "📑 Bản Thảo Báo Cáo 8D / CAPA"
+                            : "📋 Bản Thảo Báo Cáo Giao Ca"}
+                        </span>
+                        {reportModelUsed && (
+                          <span className="text-[10px] font-mono text-slate-500">
+                            Tổng hợp bởi: {reportModelUsed}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedReport);
+                          showToast(
+                            "📋 Đã sao chép báo cáo! Dán ngay vào Zalo / Teams / Email."
+                          );
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Báo Cáo</span>
+                      </button>
+                    </div>
+
+                    {/* Clean Report Text Area */}
+                    <div className="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3">
+                      <FormattedMessage
+                        content={generatedReport}
+                        isUser={false}
+                      />
+                    </div>
+
+                    {/* Bottom Action Buttons (Separated cleanly) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleDownloadReportTxt}
+                        className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1.5 transition"
+                      >
+                        <Download className="w-4 h-4 text-cyan-400" />
+                        <span>Tải File Báo Cáo (.TXT)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveReportDirectlyToVault}
+                        disabled={savingReportToVault}
+                        className="py-2.5 px-3 rounded-xl bg-emerald-600/25 hover:bg-emerald-600/35 border border-emerald-500/40 text-xs font-semibold text-emerald-200 flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+                      >
+                        <BookmarkPlus className="w-4 h-4 text-emerald-400" />
+                        <span>
+                          {savingReportToVault
+                            ? "Đang tạo Vector & Lưu..."
+                            : "Lưu thẳng vào Kho Tri Thức RAG"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 text-center space-y-2">
+                    <p className="text-xs text-slate-300 font-medium">
+                      Chưa có bản báo cáo nào được tạo cho phiên này.
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Hãy chọn mẫu{" "}
+                      <strong className="text-cyan-300">Giao Ca Nhanh</strong>{" "}
+                      hoặc{" "}
+                      <strong className="text-indigo-300">
+                        Báo Cáo 8D / CAPA
+                      </strong>{" "}
+                      ở trên rồi bấm nút Tổng hợp.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ================= OTHER TABS ================= */
+          <main className="flex-1 overflow-y-auto">
+            {/* ================= TAB 2: LOG ANALYTICS (CLEAN SEGMENTED UI) ================= */}
+            {activeTab === "analytics" && (
+              <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
+                {/* Compact File Header Bar */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="text-[10px] uppercase tracking-wider text-cyan-400 font-semibold block">
+                        File Log Đang Phân Tích
+                      </span>
+                      <h2 className="font-mono font-bold text-xs sm:text-sm text-white truncate">
+                        {logResult ? logResult.fileName : "Chưa chọn file"}
+                      </h2>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        ref={logFileInputRef}
+                        type="file"
+                        accept=".csv,.txt,.log,.tsv"
+                        onChange={handleLogFileSelect}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => logFileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Chọn File</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadSampleCsv}
+                        title="Tải file CSV mẫu"
+                        className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {logResult && (
+                  <>
+                    {/* 4 Balanced KPI Summary Cards (2x2 Grid) */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Tỷ lệ đạt (FPY)
+                        </span>
+                        <div className="text-lg font-bold font-mono text-amber-300 mt-0.5">
+                          {logResult.fpyRate}%
+                        </div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          PASS: {logResult.passCount}/{logResult.totalRecords} lượt
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Tổng lượt Lỗi (FAIL)
+                        </span>
+                        <div className="text-lg font-bold font-mono text-rose-400 mt-0.5">
+                          {logResult.failCount} lỗi
+                        </div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          Trên {logResult.uniqueUnits} sản phẩm
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Báo lỗi ảo (Retest OK)
+                        </span>
+                        <div className="text-lg font-bold font-mono text-cyan-300 mt-0.5">
+                          {logResult.falseCallRate}%
+                        </div>
+                        <span className="text-[11px] text-slate-500 block mt-0.5">
+                          {logResult.retestOkCount} máy test lại PASS
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Chỉ số Cpk thấp nhất
+                        </span>
+                        {logResult.cpkItems.length > 0 ? (
+                          <>
+                            <div className="text-lg font-bold font-mono text-rose-400 mt-0.5">
+                              {logResult.cpkItems[0].cpk}
+                            </div>
+                            <span className="text-[11px] text-slate-500 block mt-0.5 truncate">
+                              Tại: {logResult.cpkItems[0].testItem}
+                            </span>
+                          </>
+                        ) : (
+                          <div className="text-xs text-slate-500 mt-2">
+                            Không có LSL/USL
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Clean 3-Part Segmented Control */}
+                    <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setAnalyticsSubTab("pareto")}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${
+                          analyticsSubTab === "pareto"
+                            ? "bg-cyan-500 text-slate-950 shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        Top Lỗi ({logResult.pareto.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAnalyticsSubTab("cpk")}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${
+                          analyticsSubTab === "cpk"
+                            ? "bg-cyan-500 text-slate-950 shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        Chỉ số Cpk ({logResult.cpkItems.length})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setAnalyticsSubTab("ai-report")}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${
+                          analyticsSubTab === "ai-report"
+                            ? "bg-cyan-500 text-slate-950 shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        Báo cáo AI
+                      </button>
+                    </div>
+
+                    {/* SUB-VIEW 1: PARETO TOP DEFECTS */}
+                    {analyticsSubTab === "pareto" && (
+                      <div className="space-y-2.5">
+                        {logResult.pareto.map((p, idx) => (
+                          <div
+                            key={p.errorCode}
+                            className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5"
+                          >
+                            {/* Row 1: Rank + Error Code | Count + % */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+                                  {idx + 1}
+                                </span>
+                                <span className="font-mono font-bold text-sm text-white truncate">
+                                  {p.errorCode}
+                                </span>
+                              </div>
+                              <span className="font-mono text-xs font-bold text-rose-400 shrink-0">
+                                {p.count} lỗi ({p.percentOfFails}%)
+                              </span>
+                            </div>
+
+                            {/* Row 2: Progress Bar */}
+                            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-rose-500 to-amber-400 rounded-full"
+                                style={{
+                                  width: `${Math.max(8, p.percentOfFails)}%`,
+                                }}
+                              />
+                            </div>
+
+                            {/* Row 3: Details stacked cleanly + AI Action Button */}
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
+                              <div className="text-slate-400">
+                                Trạm:{" "}
+                                <strong className="text-slate-200">
+                                  {p.station}
+                                </strong>{" "}
+                                • Bài đo:{" "}
+                                <strong className="text-slate-200 font-mono">
+                                  {p.testItem}
+                                </strong>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab("chat");
+                                  handleSendMessage(
+                                    `Trạm ${p.station} bị lỗi ${p.errorCode} tại bài đo ${p.testItem} (${p.count} lỗi, chiếm ${p.percentOfFails}%). Hướng dẫn nguyên nhân và cách xử lý SOP?`
+                                  );
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-semibold text-xs shrink-0 transition"
+                              >
+                                Hỏi AI cách sửa →
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* SUB-VIEW 2: CPK PROCESS CAPABILITY */}
+                    {analyticsSubTab === "cpk" && (
+                      <div className="space-y-2.5">
+                        {logResult.cpkItems.map((c) => (
+                          <div
+                            key={`${c.station}-${c.testItem}`}
+                            className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5"
+                          >
+                            {/* Header: Test Item + Status Badge */}
+                            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                              <div>
+                                <span className="font-mono font-bold text-sm text-white block">
+                                  {c.testItem}
+                                </span>
+                                <span className="text-[11px] text-slate-400">
+                                  Trạm: {c.station} ({c.sampleCount} mẫu đo)
+                                </span>
+                              </div>
+
+                              <span
+                                className={`px-2.5 py-1 rounded-xl font-mono text-xs font-bold border ${
+                                  c.status === "good"
+                                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                                    : c.status === "warning"
+                                    ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                                    : "bg-rose-500/15 border-rose-500/40 text-rose-300"
+                                }`}
+                              >
+                                Cpk = {c.cpk}{" "}
+                                {c.status === "good"
+                                  ? "(ĐẠT)"
+                                  : c.status === "warning"
+                                  ? "(CẢNH BÁO)"
+                                  : "(NG < 1.0)"}
+                              </span>
+                            </div>
+
+                            {/* Clean Vertical Rows for Spec Limits */}
+                            <div className="space-y-1.5 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">
+                                  Ngưỡng chuẩn (LSL → USL):
+                                </span>
+                                <strong className="text-slate-200 font-mono">
+                                  {c.lsl} {c.unit} → {c.usl} {c.unit}
+                                </strong>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">
+                                  Trung bình thực tế (Mean μ):
+                                </span>
+                                <strong className="text-cyan-300 font-mono">
+                                  {c.mean} {c.unit}
+                                </strong>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">
+                                  Độ lệch chuẩn (StdDev σ):
+                                </span>
+                                <strong className="text-amber-300 font-mono">
+                                  {c.stdDev} (Cp = {c.cp})
+                                </strong>
+                              </div>
+
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-400">
+                                  Giá trị đo Min / Max:
+                                </span>
+                                <strong className="text-slate-200 font-mono">
+                                  {c.min} {c.unit} / {c.max} {c.unit}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* SUB-VIEW 3: AI SHIFT HANDOVER REPORT */}
+                    {analyticsSubTab === "ai-report" && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          AI sẽ đối chiếu các mã lỗi trong file Log với{" "}
+                          <strong className="text-cyan-300">
+                            Kho Tri Thức MongoDB
+                          </strong>{" "}
+                          để chẩn đoán nguyên nhân và viết sẵn Báo cáo Bàn giao Ca.
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={aiLogLoading}
+                          onClick={handleGenerateLogAIReport}
+                          className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md transition"
+                        >
+                          {aiLogLoading ? (
+                            <>
+                              <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                              <span>Đang phân tích & viết Báo cáo Ca...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4" />
+                              <span>
+                                {aiLogReport
+                                  ? "Tạo Lại Báo Cáo Ca Bằng AI"
+                                  : "Tạo Báo Cáo Bàn Giao Ca Bằng AI"}
+                              </span>
+                            </>
+                          )}
+                        </button>
+
+                        {aiLogReport && (
+                          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3 mt-2">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                              <span className="text-xs font-bold text-cyan-300">
+                                Báo Cáo Bàn Giao Ca (Shift Report)
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => speakMessage(aiLogReport, 999)}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-800 text-cyan-300 text-xs font-medium flex items-center gap-1"
+                                >
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                  <span>
+                                    {speakingIdx === 999 ? "Dừng" : "Nghe"}
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(aiLogReport);
+                                    showToast("📋 Đã copy Báo cáo Ca!");
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <FormattedMessage
+                              content={aiLogReport}
+                              isUser={false}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ================= TAB 3: QUICK TROUBLESHOOTING NOTE ================= */}
+            {activeTab === "quick-note" && (
+              <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
+                {/* Vision Auto-Fill Button Card */}
+                <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-xs sm:text-sm text-white">
+                        📸 Quét Ảnh Lỗi Tự Động Điền Form
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Chụp màn hình lỗi hoặc SOP để AI tự điền các ô bên dưới
+                      </p>
+                    </div>
+                    <input
+                      ref={visionInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleVisionAutoFill}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={visionScanning}
+                      onClick={() => visionInputRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
+                    >
+                      <Camera className="w-4 h-4 text-cyan-300" />
+                      <span>{visionScanning ? "Đang quét..." : "Chụp / Chọn Ảnh"}</span>
+                    </button>
+                  </div>
+
+                  {visionPreview && (
+                    <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-2">
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={visionPreview}
+                          alt="Scanned"
+                          className="w-10 h-10 rounded-lg object-cover"
+                        />
+                        <span className="text-xs text-emerald-400 font-medium">
+                          Đã điền tự động từ ảnh chụp!
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setVisionPreview(null)}
+                        className="p-1 text-slate-400 hover:text-rose-400"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <form onSubmit={handleSaveQuickNote} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Tên sự cố / Tiêu đề ghi chú *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={noteTitle}
+                      onChange={(e) => setNoteTitle(e.target.value)}
+                      placeholder="VD: Lỗi FAIL_AUDIO_MIC trên trạm FCT-05"
+                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2.5 text-sm text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Nhóm Trạm Test
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TE_CATEGORIES.map((cat) => (
+                        <button
+                          type="button"
+                          key={cat}
+                          onClick={() => setNoteCategory(cat)}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
+                            noteCategory === cat
+                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                              : "bg-slate-900 border-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Mã lỗi (Error Code)
+                      </label>
+                      <input
+                        type="text"
+                        value={noteErrorCode}
+                        onChange={(e) => setNoteErrorCode(e.target.value)}
+                        placeholder="VD: ERR-402"
+                        className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm font-mono text-amber-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Trạm Test (Station)
+                      </label>
+                      <input
+                        type="text"
+                        value={noteStation}
+                        onChange={(e) => setNoteStation(e.target.value)}
+                        placeholder="VD: FCT-02"
+                        className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Triệu chứng lỗi (Symptom)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleVoiceInput("symptom")}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                          isListening && voiceTarget === "symptom"
+                            ? "bg-rose-600 border-rose-400 text-white"
+                            : "bg-slate-800 border-slate-700 text-cyan-300"
+                        }`}
+                      >
+                        <Mic className="w-3 h-3" />
+                        <span>
+                          {isListening && voiceTarget === "symptom"
+                            ? "Đang nghe..."
+                            : "Đọc giọng nói"}
+                        </span>
+                      </button>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={noteSymptom}
+                      onChange={(e) => setNoteSymptom(e.target.value)}
+                      placeholder="Biểu hiện trên màn hình test, thông số đo..."
+                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-300">
+                        Nguyên nhân gốc (Root Cause)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleVoiceInput("rootCause")}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                          isListening && voiceTarget === "rootCause"
+                            ? "bg-rose-600 border-rose-400 text-white"
+                            : "bg-slate-800 border-slate-700 text-cyan-300"
+                        }`}
+                      >
+                        <Mic className="w-3 h-3" />
+                        <span>
+                          {isListening && voiceTarget === "rootCause"
+                            ? "Đang nghe..."
+                            : "Đọc giọng nói"}
+                        </span>
+                      </button>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={noteRootCause}
+                      onChange={(e) => setNoteRootCause(e.target.value)}
+                      placeholder="Do kim Pogo Pin bẩn, lệch Jig hay lỗi linh kiện?"
+                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-emerald-400">
+                        Các bước xử lý (Action / SOP) *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => toggleVoiceInput("solution")}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                          isListening && voiceTarget === "solution"
+                            ? "bg-rose-600 border-rose-400 text-white"
+                            : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                        }`}
+                      >
+                        <Mic className="w-3 h-3" />
+                        <span>
+                          {isListening && voiceTarget === "solution"
+                            ? "Đang nghe..."
+                            : "Đọc giọng nói"}
+                        </span>
+                      </button>
+                    </div>
+                    <textarea
+                      rows={3}
+                      required
+                      value={noteSolution}
+                      onChange={(e) => setNoteSolution(e.target.value)}
+                      placeholder="Bước 1: Kiểm tra...&#10;Bước 2: Xử lý..."
+                      className="w-full rounded-xl bg-slate-900 border border-emerald-500/40 focus:border-emerald-400 focus:outline-none px-3.5 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Tags (Cách nhau bằng dấu phẩy)
+                    </label>
+                    <input
+                      type="text"
+                      value={noteTags}
+                      onChange={(e) => setNoteTags(e.target.value)}
+                      placeholder="VD: FCT, PogoPin, 3V3"
+                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={savingNote}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>
+                      {savingNote
+                        ? "Đang lưu Vector vào MongoDB..."
+                        : "Lưu Sổ Tay & Huấn Luyện AI"}
+                    </span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* ================= TAB 4: KNOWLEDGE VAULT ================= */}
+            {activeTab === "vault" && (
+              <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
+                {/* Compact Upload Box */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-xs sm:text-sm text-white">
+                        📂 Nạp Tài Liệu SOP / File Vào Bộ Nhớ AI
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        Hỗ trợ .pdf, .docx, .txt, .csv, .log & ảnh tài liệu
+                      </p>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.txt,.md,.csv,.log,.json,.ini,.png,.jpg,.jpeg,.webp"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={uploadingFile}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{uploadingFile ? "Đang nạp..." : "Tải File Lên"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search & Category Filter */}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Tìm theo Mã lỗi (ERR-...), Trạm test, từ khóa..."
+                      className="w-full rounded-xl bg-slate-900 border border-slate-800 focus:border-cyan-500 focus:outline-none pl-10 pr-4 py-2 text-xs sm:text-sm text-white"
+                    />
+                  </div>
+
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {["Tất cả", ...TE_CATEGORIES].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
+                          selectedCategory === cat
+                            ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                            : "bg-slate-900 border-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Items List */}
+                {loadingKnowledge ? (
+                  <div className="py-10 text-center text-xs text-slate-400">
+                    Đang tải Kho Tri Thức...
+                  </div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="py-10 text-center bg-slate-900/50 rounded-2xl border border-slate-800 p-5 text-xs text-slate-400">
+                    Chưa có mục tri thức nào khớp từ khóa.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {filteredItems.map((item) => (
+                      <div
+                        key={item._id}
+                        onClick={() => setSelectedItemModal(item)}
+                        className="cursor-pointer bg-slate-900 hover:bg-slate-900/80 border border-slate-800 hover:border-cyan-500/40 rounded-2xl p-3.5 space-y-2 transition"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {item.errorCode && (
+                                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                  {item.errorCode}
+                                </span>
+                              )}
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                                {item.category}
+                              </span>
+                              {item.station && (
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 text-blue-300">
+                                  {item.station}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-semibold text-xs sm:text-sm text-white pt-0.5">
+                              {item.title}
+                            </h4>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteItem(item._id);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                          {item.solution || item.symptom || item.content}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================= TAB 5: SETTINGS (CLEAN 3-SUBTAB LAYOUT) ================= */}
+            {activeTab === "settings" && (
+              <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
+                {/* Segmented Switcher for System Tab */}
+                <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab("tokens")}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                      settingsSubTab === "tokens"
+                        ? "bg-cyan-500 text-slate-950 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Thống kê Token
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab("database")}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                      settingsSubTab === "database"
+                        ? "bg-cyan-500 text-slate-950 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Dung lượng DB
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSubTab("models")}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${
+                      settingsSubTab === "models"
+                        ? "bg-cyan-500 text-slate-950 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    Chọn Model AI
+                  </button>
+                </div>
+
+                {/* SETTINGS SUB-VIEW 1: TOKEN USAGE & LIMITS */}
+                {settingsSubTab === "tokens" && (
+                  <div className="space-y-3">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">
+                          Tiêu thụ Token hôm nay ({tokenTelemetry.activeModel})
+                        </span>
+                        <span className="text-xs font-mono font-bold text-cyan-300">
+                          {tokenTelemetry.today.totalTokens.toLocaleString()} tokens
+                        </span>
+                      </div>
+
+                      <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(
+                                2,
+                                (tokenTelemetry.today.totalTokens /
+                                  tokenTelemetry.limits.dailyTokenQuota) *
+                                  100
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">
+                            Hạn mức Token Free Tier / ngày:
+                          </span>
+                          <strong className="text-slate-200 font-mono">
+                            {tokenTelemetry.limits.dailyTokenQuota.toLocaleString()} tokens
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">
+                            Token còn lại hôm nay:
+                          </span>
+                          <strong className="text-emerald-400 font-mono">
+                            {Math.max(
+                              0,
+                              tokenTelemetry.limits.dailyTokenQuota -
+                                tokenTelemetry.today.totalTokens
+                            ).toLocaleString()}{" "}
+                            tokens
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">
+                            Số lượt gọi hôm nay (RPD):
+                          </span>
+                          <strong className="text-white font-mono">
+                            {tokenTelemetry.today.requests} /{" "}
+                            {tokenTelemetry.limits.freeTierRpdLimit} lượt
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4 Balanced Token Breakdown Boxes */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Prompt (Đầu vào)
+                        </span>
+                        <span className="text-base font-bold font-mono text-white mt-0.5 block">
+                          {tokenTelemetry.today.promptTokens.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Thinking (Suy luận)
+                        </span>
+                        <span className="text-base font-bold font-mono text-amber-300 mt-0.5 block">
+                          {tokenTelemetry.today.thoughtsTokens.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Output (Câu trả lời)
+                        </span>
+                        <span className="text-base font-bold font-mono text-emerald-300 mt-0.5 block">
+                          {tokenTelemetry.today.candidatesTokens.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Tổng lũy kế ({tokenTelemetry.allTime.requests} lượt)
+                        </span>
+                        <span className="text-base font-bold font-mono text-cyan-300 mt-0.5 block">
+                          {tokenTelemetry.allTime.totalTokens.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Official Spec Limits */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs">
+                      <span className="font-bold text-slate-200 block">
+                        Giới hạn kỹ thuật của Model ({tokenTelemetry.activeModel})
+                      </span>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                        <span className="text-slate-400">Context tối đa / lượt:</span>
+                        <strong className="text-slate-200 font-mono">
+                          {tokenTelemetry.limits.inputTokenLimit.toLocaleString()} tokens
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Output tối đa / lượt:</span>
+                        <strong className="text-slate-200 font-mono">
+                          {tokenTelemetry.limits.outputTokenLimit.toLocaleString()} tokens
+                        </strong>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Giới hạn phút (TPM):</span>
+                        <strong className="text-slate-200 font-mono">
+                          {tokenTelemetry.limits.freeTierTpmLimit.toLocaleString()} / phút
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Recent Token Call Logs */}
+                    {tokenTelemetry.recentLogs.length > 0 && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                        <span className="text-xs font-bold text-slate-200 block">
+                          Nhật ký tiêu thụ gần nhất ({tokenTelemetry.recentLogs.length} lượt)
+                        </span>
+                        <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
+                          {tokenTelemetry.recentLogs.map((log) => (
+                            <div
+                              key={log.id}
+                              className="bg-slate-950 border border-slate-800/90 rounded-xl p-2.5 space-y-1.5"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 text-[10px] font-semibold uppercase shrink-0">
+                                    {log.actionType === "chat"
+                                      ? "Chat RAG"
+                                      : log.actionType === "embedding"
+                                      ? "Vector"
+                                      : "Vision"}
+                                  </span>
+                                  <span className="text-xs font-mono text-slate-200 truncate">
+                                    {log.modelName}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-mono font-bold text-cyan-300 shrink-0">
+                                  {log.totalTokens.toLocaleString()} tokens
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
+                                <div className="flex items-center justify-between bg-slate-900 rounded px-2 py-1">
+                                  <span className="text-slate-400">In:</span>
+                                  <span className="text-slate-200">
+                                    {log.promptTokens}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-slate-900 rounded px-2 py-1">
+                                  <span className="text-slate-400">Think:</span>
+                                  <span className="text-amber-300">
+                                    {log.thoughtsTokens}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between bg-slate-900 rounded px-2 py-1">
+                                  <span className="text-slate-400">Out:</span>
+                                  <span className="text-emerald-300">
+                                    {log.candidatesTokens}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SETTINGS SUB-VIEW 2: MONGODB STORAGE & REMAINING SPACE */}
+                {settingsSubTab === "database" && (
+                  <div className="space-y-3">
+                    {/* Local Disk Space Card */}
+                    {dbStorage.fsTotalSize > 0 && (
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <Database className="w-4 h-4 text-emerald-400" />
+                            <span>Ổ Cứng Chứa MongoDB Local</span>
+                          </span>
+                          <span className="text-xs font-mono font-bold text-emerald-400">
+                            Trống {formatBytes(dbStorage.fsFreeSize)}
+                          </span>
+                        </div>
+
+                        <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (dbStorage.fsUsedSize / dbStorage.fsTotalSize) *
+                                  100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">
+                              Đã dùng / Tổng dung lượng ổ đĩa:
+                            </span>
+                            <strong className="text-slate-200 font-mono">
+                              {formatBytes(dbStorage.fsUsedSize)} /{" "}
+                              {formatBytes(dbStorage.fsTotalSize)}
+                            </strong>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-400">
+                              Không gian trống còn lại:
+                            </span>
+                            <strong className="text-emerald-400 font-mono">
+                              {formatBytes(dbStorage.fsFreeSize)} (
+                              {(
+                                (dbStorage.fsFreeSize / dbStorage.fsTotalSize) *
+                                100
+                              ).toFixed(1)}
+                              %)
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cloud 512MB Quota Card */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">
+                          Hạn Mức Chuẩn MongoDB Atlas Free (512 MB)
+                        </span>
+                        <span className="text-xs font-mono font-bold text-cyan-300">
+                          {formatBytes(dbStorage.totalDbSize)} / 512 MB
+                        </span>
+                      </div>
+
+                      <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-500 rounded-full"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(
+                                2,
+                                (dbStorage.totalDbSize /
+                                  dbStorage.atlasFreeLimitBytes) *
+                                  100
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="space-y-1.5 pt-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">
+                            Dung lượng còn trống (trên 512 MB):
+                          </span>
+                          <strong className="text-cyan-300 font-mono">
+                            {formatBytes(dbStorage.atlasFreeRemainingBytes)}
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">
+                            Ước tính nạp thêm được:
+                          </span>
+                          <strong className="text-white font-mono">
+                            ~
+                            {Math.floor(
+                              dbStorage.atlasFreeRemainingBytes / 28000
+                            ).toLocaleString()}{" "}
+                            tài liệu Vector
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4 Balanced DB Detail Cards */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Dữ liệu thuần (Data)
+                        </span>
+                        <span className="text-base font-bold font-mono text-white mt-0.5 block">
+                          {formatBytes(dbStorage.dataSize)}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {dbStorage.objects} bản ghi ({dbStorage.collections} bảng)
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Cấp phát (Storage)
+                        </span>
+                        <span className="text-base font-bold font-mono text-emerald-300 mt-0.5 block">
+                          {formatBytes(dbStorage.storageSize)}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Nén WiredTiger
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Chỉ mục (Index Size)
+                        </span>
+                        <span className="text-base font-bold font-mono text-amber-300 mt-0.5 block">
+                          {formatBytes(dbStorage.indexSize)}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Truy vấn nhanh
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
+                        <span className="text-[11px] text-slate-400 block">
+                          Tổng DB Chiếm Dụng
+                        </span>
+                        <span className="text-base font-bold font-mono text-cyan-300 mt-0.5 block">
+                          {formatBytes(dbStorage.totalDbSize)}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Storage + Index
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* SETTINGS SUB-VIEW 3: MODEL SELECTOR & API KEY */}
+                {settingsSubTab === "models" && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {AVAILABLE_MODELS.map((m) => {
+                        const isSelected = selectedModel === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedModel(m.id);
+                              localStorage.setItem(
+                                "te_brain_selected_model",
+                                m.id
+                              );
+                              fetchSystemStatus(m.id);
+                              showToast(`Đã chọn Model: ${m.name}`);
+                            }}
+                            className={`w-full text-left rounded-2xl p-3.5 border transition flex items-start justify-between gap-2.5 ${
+                              isSelected
+                                ? "bg-cyan-950/40 border-cyan-400"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                            }`}
+                          >
+                            <div className="space-y-1 min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-bold text-xs sm:text-sm text-white">
+                                  {m.name}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                    isSelected
+                                      ? "bg-cyan-500 text-slate-950"
+                                      : "bg-slate-800 text-slate-300"
+                                  }`}
+                                >
+                                  {m.badge}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400">{m.desc}</p>
+                              <div className="space-y-1 pt-1.5 mt-1 border-t border-slate-800/70 text-[11px] font-mono">
+                                <div className="flex items-center justify-between text-slate-400">
+                                  <span>Context tối đa:</span>
+                                  <span className="text-slate-200 font-semibold">
+                                    {m.context} tokens
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-slate-400">
+                                  <span>Output tối đa:</span>
+                                  <span className="text-slate-200 font-semibold">
+                                    {m.output} tokens
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                                isSelected
+                                  ? "border-cyan-400 bg-cyan-500 text-slate-950"
+                                  : "border-slate-700 bg-slate-950"
+                              }`}
+                            >
+                              {isSelected && (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* API Key Input Box */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                      <h3 className="font-bold text-xs text-white flex items-center gap-1.5">
+                        <KeyRound className="w-4 h-4 text-cyan-400" />
+                        <span>Đổi Gemini API Key (Hiện tại: {systemStatus.maskedKey})</span>
+                      </h3>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={customApiKey}
+                          onChange={(e) => setCustomApiKey(e.target.value)}
+                          placeholder="Để trống để dùng Key mặc định..."
+                          className="flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customApiKey.trim()) {
+                              localStorage.setItem(
+                                "te_brain_gemini_key",
+                                customApiKey.trim()
+                              );
+                              showToast("Đã lưu API Key mới!");
+                            } else {
+                              localStorage.removeItem("te_brain_gemini_key");
+                              showToast("Đang dùng Key mặc định!");
+                            }
+                            fetchSystemStatus();
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white transition"
+                        >
+                          Lưu
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </main>
+        )}
+
+        {/* 3. Balanced 5-Tab Bottom Navigation Bar */}
+        <nav className="shrink-0 bg-[#0b111e] border-t border-slate-800/90 px-1.5 py-1.5 grid grid-cols-5 gap-1">
+          <button
+            onClick={() => setActiveTab("chat")}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
+              activeTab === "chat"
+                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Bot className="w-5 h-5" />
+            <span className="text-[10px]">Chat AI</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
+              activeTab === "analytics"
+                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px]">Phân tích</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("quick-note")}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
+              activeTab === "quick-note"
+                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <PlusCircle className="w-5 h-5" />
+            <span className="text-[10px]">Ghi nhanh</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("vault")}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition relative ${
+              activeTab === "vault"
+                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <FolderKanban className="w-5 h-5" />
+            <span className="text-[10px]">Kho lưu</span>
+            {stats.total > 0 && (
+              <span className="absolute top-0.5 right-3 text-[9px] font-bold px-1.5 rounded-full bg-cyan-500 text-slate-950">
+                {stats.total}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("settings");
+              fetchSystemStatus();
+            }}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
+              activeTab === "settings"
+                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px]">Hệ thống</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Modal View Full Knowledge Detail */}
+      {selectedItemModal && (
+        <div
+          onClick={() => setSelectedItemModal(null)}
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg max-h-[85vh] bg-slate-900 border border-slate-700 rounded-t-3xl sm:rounded-3xl p-4 sm:p-5 overflow-y-auto space-y-3.5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">
+                    {selectedItemModal.category}
+                  </span>
+                  {selectedItemModal.errorCode && (
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                      {selectedItemModal.errorCode}
+                    </span>
+                  )}
+                  {selectedItemModal.station && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                      📍 {selectedItemModal.station}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-bold text-sm sm:text-base text-white">
+                  {selectedItemModal.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedItemModal(null)}
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 text-xs sm:text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
+              {selectedItemModal.content}
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={() => {
+                  const q = `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${
+                    selectedItemModal.errorCode
+                      ? `(${selectedItemModal.errorCode})`
+                      : ""
+                  }`;
+                  setSelectedItemModal(null);
+                  setActiveTab("chat");
+                  handleSendMessage(q);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition"
+              >
+                <Bot className="w-4 h-4" />
+                <span>Hỏi sâu AI về ca lỗi này</span>
+              </button>
+
+              <button
+                onClick={() => handleDeleteItem(selectedItemModal._id)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 text-xs transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Xóa</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

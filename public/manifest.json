@@ -1,0 +1,10 @@
+{
+  "name": "TE Brain - Trợ lý AI Kỹ sư TE",
+  "short_name": "TE Brain",
+  "description": "Trợ lý AI RAG & Sổ tay Xử lý Sự cố thông minh dành riêng cho Kỹ sư Test Engineer (TE)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "portrait-primary"
+}

@@ -1,0 +1,28 @@
+{
+  "name": "te-brain-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile-First AI Assistant & RAG Knowledge Base for Test Engineers (TE)",
+  "scripts": {
+    "dev": "next dev -p 3050",
+    "build": "next build",
+    "start": "next start -p 3050",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "lucide-react": "^1.47.0",
+    "mammoth": "^1.8.0",
+    "mongoose": "^8.10.0",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
