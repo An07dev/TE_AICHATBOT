@@ -3232,9 +3232,6 @@ export default function TEBrainApp() {
                         <span className="text-xs font-bold text-white">
                           Tiêu thụ Token hôm nay ({tokenTelemetry.activeModel})
                         </span>
-                        <span className="text-xs font-mono font-bold text-cyan-300">
-                          {tokenTelemetry.today.totalTokens.toLocaleString()} tokens
-                        </span>
                       </div>
 
                       <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
