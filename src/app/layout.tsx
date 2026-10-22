@@ -6,6 +6,14 @@ export const metadata: Metadata = {
   description:
     "Hệ thống Chatbot RAG & Kho Tri Thức Xử lý Sự cố thông minh dành cho Kỹ sư TE (Next.js + Mongoose + Gemini API)",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/logo.png", type: "image/png" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    shortcut: ["/logo.png"],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

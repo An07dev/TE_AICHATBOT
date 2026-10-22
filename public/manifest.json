@@ -1,10 +1,24 @@
 {
-  "name": "TE Brain - Trợ lý AI Kỹ sư TE",
-  "short_name": "TE Brain",
+  "name": "TE Brain AI - Trợ lý Kỹ sư TE",
+  "short_name": "TE Brain AI",
   "description": "Trợ lý AI RAG & Sổ tay Xử lý Sự cố thông minh dành riêng cho Kỹ sư Test Engineer (TE)",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d16",
   "theme_color": "#090d16",
-  "orientation": "portrait-primary"
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

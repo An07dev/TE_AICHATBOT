@@ -1511,9 +1511,11 @@ export default function TEBrainApp() {
     return (
       <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 animate-pulse">
-            <Cpu className="w-5 h-5 text-white" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="TE Brain AI Logo"
+            className="w-14 h-14 rounded-2xl object-contain bg-white p-1 shadow-lg shadow-cyan-500/20 animate-pulse"
+          />
           <span className="text-xs text-slate-400 font-medium">
             Đang kiểm tra phiên bảo mật...
           </span>
@@ -1528,9 +1530,11 @@ export default function TEBrainApp() {
         <div className="w-full max-w-sm bg-[#0b111e] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-5">
           {/* Header */}
           <div className="flex flex-col items-center text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
-              <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="TE Brain AI Logo"
+              className="w-16 h-16 rounded-2xl object-contain bg-white p-1 shadow-lg shadow-cyan-500/25"
+            />
             <div>
               <h1 className="font-bold text-base text-white tracking-tight">
                 Khóa Bảo Mật TE Brain AI
@@ -1667,9 +1671,11 @@ export default function TEBrainApp() {
         {/* 1. Sleek Top Header */}
         <header className="shrink-0 bg-[#0b111e]/95 backdrop-blur-md border-b border-slate-800/80 px-3 py-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
-              <Cpu className="w-4 h-4 text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="TE Brain AI Logo"
+              className="w-8 h-8 rounded-xl object-contain bg-white p-0.5 shadow-md shadow-cyan-500/20 shrink-0"
+            />
             <div className="min-w-0">
               <h1 className="font-bold text-xs sm:text-sm tracking-tight text-white truncate">
                 TE Brain AI
