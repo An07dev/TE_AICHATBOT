@@ -659,7 +659,7 @@ export default function TEBrainApp() {
           fetchSystemStatus(savedModel);
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -1455,9 +1455,9 @@ export default function TEBrainApp() {
     const SpeechRec =
       typeof window !== "undefined"
         ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).SpeechRecognition ||
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).webkitSpeechRecognition
+        (window as any).SpeechRecognition ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).webkitSpeechRecognition
         : null;
 
     if (SpeechRec) {
@@ -1559,11 +1559,10 @@ export default function TEBrainApp() {
                 return (
                   <div
                     key={i}
-                    className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
-                      filled
-                        ? "bg-cyan-400 scale-110 shadow-sm shadow-cyan-400/60"
-                        : "bg-slate-800 border border-slate-700"
-                    }`}
+                    className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${filled
+                      ? "bg-cyan-400 scale-110 shadow-sm shadow-cyan-400/60"
+                      : "bg-slate-800 border border-slate-700"
+                      }`}
                   />
                 );
               })}
@@ -1651,11 +1650,10 @@ export default function TEBrainApp() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed top-3 z-50 px-4 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2 text-xs font-medium transition-all duration-300 max-w-[92vw] ${
-            toast.type === "success"
-              ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200"
-              : "bg-rose-950/95 border-rose-500/50 text-rose-200"
-          }`}
+          className={`fixed top-3 z-50 px-4 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2 text-xs font-medium transition-all duration-300 max-w-[92vw] ${toast.type === "success"
+            ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200"
+            : "bg-rose-950/95 border-rose-500/50 text-rose-200"
+            }`}
         >
           {toast.type === "success" ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1685,34 +1683,11 @@ export default function TEBrainApp() {
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                   Online
                 </span>
-                <span>•</span>
-                <span className="text-cyan-300/90">{stats.total} mục</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <select
-              value={selectedModel}
-              onChange={(e) => {
-                const m = e.target.value;
-                setSelectedModel(m);
-                localStorage.setItem("te_brain_selected_model", m);
-                fetchSystemStatus(m);
-                showToast(`Đã chọn Model: ${m}`);
-              }}
-              className="h-7.5 px-2 rounded-lg bg-slate-900 border border-slate-700/80 text-[11px] font-mono text-cyan-300 focus:outline-none cursor-pointer"
-            >
-              {AVAILABLE_MODELS.map((m) => (
-                <option
-                  key={m.id}
-                  value={m.id}
-                  className="bg-slate-900 text-slate-100"
-                >
-                  {m.name}
-                </option>
-              ))}
-            </select>
 
             <button
               onClick={() => {
@@ -1747,11 +1722,10 @@ export default function TEBrainApp() {
                 <button
                   type="button"
                   onClick={() => setChatSubTab("conversation")}
-                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
-                    chatSubTab === "conversation"
-                      ? "bg-cyan-500 text-slate-950 shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${chatSubTab === "conversation"
+                    ? "bg-cyan-500 text-slate-950 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <Bot className="w-3.5 h-3.5 shrink-0" />
                   <span>Chat</span>
@@ -1763,11 +1737,10 @@ export default function TEBrainApp() {
                     setChatSubTab("history");
                     fetchSystemStatus();
                   }}
-                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
-                    chatSubTab === "history"
-                      ? "bg-cyan-500 text-slate-950 shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${chatSubTab === "history"
+                    ? "bg-cyan-500 text-slate-950 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <History className="w-3.5 h-3.5 shrink-0" />
                   <span>Lịch sử ({chatSessions.length})</span>
@@ -1776,11 +1749,10 @@ export default function TEBrainApp() {
                 <button
                   type="button"
                   onClick={() => setChatSubTab("report")}
-                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
-                    chatSubTab === "report"
-                      ? "bg-cyan-500 text-slate-950 shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${chatSubTab === "report"
+                    ? "bg-cyan-500 text-slate-950 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <FileText className="w-3.5 h-3.5 shrink-0" />
                   <span>Báo cáo</span>
@@ -1802,11 +1774,10 @@ export default function TEBrainApp() {
                     );
                   }}
                   title={`Tự động đọc: ${autoReadTTS ? "BẬT" : "TẮT"}`}
-                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${
-                    autoReadTTS
-                      ? "bg-emerald-500/20 border-emerald-400 text-emerald-300"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${autoReadTTS
+                    ? "bg-emerald-500/20 border-emerald-400 text-emerald-300"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   {autoReadTTS ? (
                     <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -1828,11 +1799,10 @@ export default function TEBrainApp() {
                     );
                   }}
                   title={`Rảnh tay: ${handsFreeAutoSend ? "BẬT" : "TẮT"}`}
-                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${
-                    handsFreeAutoSend
-                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                      : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`h-7.5 w-7.5 rounded-lg border flex items-center justify-center transition ${handsFreeAutoSend
+                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <Mic className="w-3.5 h-3.5" />
                 </button>
@@ -1882,16 +1852,14 @@ export default function TEBrainApp() {
                   {messages.map((msg, idx) => (
                     <div
                       key={idx}
-                      className={`flex flex-col ${
-                        msg.role === "user" ? "items-end" : "items-start"
-                      }`}
+                      className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"
+                        }`}
                     >
                       <div
-                        className={`max-w-[92%] sm:max-w-[85%] rounded-2xl px-3.5 py-3 shadow-md ${
-                          msg.role === "user"
-                            ? "bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-xs"
-                            : "bg-slate-900/95 border border-slate-800 text-slate-100 rounded-bl-xs"
-                        }`}
+                        className={`max-w-[92%] sm:max-w-[85%] rounded-2xl px-3.5 py-3 shadow-md ${msg.role === "user"
+                          ? "bg-gradient-to-br from-cyan-600 to-blue-600 text-white rounded-br-xs"
+                          : "bg-slate-900/95 border border-slate-800 text-slate-100 rounded-bl-xs"
+                          }`}
                       >
                         {msg.imagePreview && (
                           <div className="mb-2">
@@ -1957,11 +1925,10 @@ export default function TEBrainApp() {
                             <button
                               type="button"
                               onClick={() => speakMessage(msg.content, idx)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition ${
-                                speakingIdx === idx
-                                  ? "bg-rose-500/20 border-rose-400 text-rose-300 animate-pulse"
-                                  : "bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-cyan-300"
-                              }`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition ${speakingIdx === idx
+                                ? "bg-rose-500/20 border-rose-400 text-rose-300 animate-pulse"
+                                : "bg-slate-800/80 hover:bg-slate-800 border-slate-700/80 text-cyan-300"
+                                }`}
                             >
                               {speakingIdx === idx ? (
                                 <>
@@ -2075,11 +2042,10 @@ export default function TEBrainApp() {
                       onClick={() => toggleVoiceInput("chat")}
                       disabled={transcribingAudio}
                       title="Nói bằng giọng nói"
-                      className={`h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 transition ${
-                        isListening && voiceTarget === "chat"
-                          ? "bg-rose-600 border-rose-400 text-white animate-pulse"
-                          : "bg-slate-800/90 hover:bg-slate-800 text-emerald-400 border-slate-700/80"
-                      }`}
+                      className={`h-10 w-10 rounded-xl border flex items-center justify-center shrink-0 transition ${isListening && voiceTarget === "chat"
+                        ? "bg-rose-600 border-rose-400 text-white animate-pulse"
+                        : "bg-slate-800/90 hover:bg-slate-800 text-emerald-400 border-slate-700/80"
+                        }`}
                     >
                       {isListening && voiceTarget === "chat" ? (
                         <MicOff className="w-4 h-4" />
@@ -2164,11 +2130,10 @@ export default function TEBrainApp() {
                       return (
                         <div
                           key={s._id}
-                          className={`rounded-2xl p-3.5 border transition space-y-2.5 ${
-                            isCurrent
-                              ? "bg-cyan-950/25 border-cyan-500/50"
-                              : "bg-slate-900 border-slate-800"
-                          }`}
+                          className={`rounded-2xl p-3.5 border transition space-y-2.5 ${isCurrent
+                            ? "bg-cyan-950/25 border-cyan-500/50"
+                            : "bg-slate-900 border-slate-800"
+                            }`}
                         >
                           {/* Row 1: Title + Status Badge */}
                           <div className="flex items-start justify-between gap-2">
@@ -2273,11 +2238,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => setReportType("handover")}
-                        className={`p-3 rounded-xl border text-left transition space-y-1 ${
-                          reportType === "handover"
-                            ? "bg-cyan-950/40 border-cyan-500 text-white"
-                            : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
-                        }`}
+                        className={`p-3 rounded-xl border text-left transition space-y-1 ${reportType === "handover"
+                          ? "bg-cyan-950/40 border-cyan-500 text-white"
+                          : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-xs text-cyan-300">
@@ -2296,11 +2260,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => setReportType("8d")}
-                        className={`p-3 rounded-xl border text-left transition space-y-1 ${
-                          reportType === "8d"
-                            ? "bg-indigo-950/40 border-indigo-400 text-white"
-                            : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
-                        }`}
+                        className={`p-3 rounded-xl border text-left transition space-y-1 ${reportType === "8d"
+                          ? "bg-indigo-950/40 border-indigo-400 text-white"
+                          : "bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-xs text-indigo-300">
@@ -2348,11 +2311,10 @@ export default function TEBrainApp() {
                           key={lang.code}
                           type="button"
                           onClick={() => setReportLang(lang.code)}
-                          className={`py-2 px-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 ${
-                            reportLang === lang.code
-                              ? "bg-cyan-500/20 border-cyan-400 text-white shadow-sm"
-                              : "bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                          }`}
+                          className={`py-2 px-2.5 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 ${reportLang === lang.code
+                            ? "bg-cyan-500/20 border-cyan-400 text-white shadow-sm"
+                            : "bg-slate-950/70 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            }`}
                         >
                           <span className="text-xs font-bold flex items-center gap-1">
                             <span>{lang.flag}</span>
@@ -2606,11 +2568,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => setAnalyticsSubTab("pareto")}
-                        className={`py-2 rounded-lg text-xs font-semibold transition ${
-                          analyticsSubTab === "pareto"
-                            ? "bg-cyan-500 text-slate-950 shadow-sm"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${analyticsSubTab === "pareto"
+                          ? "bg-cyan-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                          }`}
                       >
                         Top Lỗi ({logResult.pareto.length})
                       </button>
@@ -2618,11 +2579,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => setAnalyticsSubTab("cpk")}
-                        className={`py-2 rounded-lg text-xs font-semibold transition ${
-                          analyticsSubTab === "cpk"
-                            ? "bg-cyan-500 text-slate-950 shadow-sm"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${analyticsSubTab === "cpk"
+                          ? "bg-cyan-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                          }`}
                       >
                         Chỉ số Cpk ({logResult.cpkItems.length})
                       </button>
@@ -2630,11 +2590,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => setAnalyticsSubTab("ai-report")}
-                        className={`py-2 rounded-lg text-xs font-semibold transition ${
-                          analyticsSubTab === "ai-report"
-                            ? "bg-cyan-500 text-slate-950 shadow-sm"
-                            : "text-slate-400 hover:text-slate-200"
-                        }`}
+                        className={`py-2 rounded-lg text-xs font-semibold transition ${analyticsSubTab === "ai-report"
+                          ? "bg-cyan-500 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-slate-200"
+                          }`}
                       >
                         Báo cáo AI
                       </button>
@@ -2724,20 +2683,19 @@ export default function TEBrainApp() {
                               </div>
 
                               <span
-                                className={`px-2.5 py-1 rounded-xl font-mono text-xs font-bold border ${
-                                  c.status === "good"
-                                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                                    : c.status === "warning"
+                                className={`px-2.5 py-1 rounded-xl font-mono text-xs font-bold border ${c.status === "good"
+                                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                                  : c.status === "warning"
                                     ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
                                     : "bg-rose-500/15 border-rose-500/40 text-rose-300"
-                                }`}
+                                  }`}
                               >
                                 Cpk = {c.cpk}{" "}
                                 {c.status === "good"
                                   ? "(ĐẠT)"
                                   : c.status === "warning"
-                                  ? "(CẢNH BÁO)"
-                                  : "(NG < 1.0)"}
+                                    ? "(CẢNH BÁO)"
+                                    : "(NG < 1.0)"}
                               </span>
                             </div>
 
@@ -2942,11 +2900,10 @@ export default function TEBrainApp() {
                           type="button"
                           key={cat}
                           onClick={() => setNoteCategory(cat)}
-                          className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
-                            noteCategory === cat
-                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                              : "bg-slate-900 border-slate-800 text-slate-400"
-                          }`}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${noteCategory === cat
+                            ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                            : "bg-slate-900 border-slate-800 text-slate-400"
+                            }`}
                         >
                           {cat}
                         </button>
@@ -2989,11 +2946,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => toggleVoiceInput("symptom")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                          isListening && voiceTarget === "symptom"
-                            ? "bg-rose-600 border-rose-400 text-white"
-                            : "bg-slate-800 border-slate-700 text-cyan-300"
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "symptom"
+                          ? "bg-rose-600 border-rose-400 text-white"
+                          : "bg-slate-800 border-slate-700 text-cyan-300"
+                          }`}
                       >
                         <Mic className="w-3 h-3" />
                         <span>
@@ -3020,11 +2976,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => toggleVoiceInput("rootCause")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                          isListening && voiceTarget === "rootCause"
-                            ? "bg-rose-600 border-rose-400 text-white"
-                            : "bg-slate-800 border-slate-700 text-cyan-300"
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "rootCause"
+                          ? "bg-rose-600 border-rose-400 text-white"
+                          : "bg-slate-800 border-slate-700 text-cyan-300"
+                          }`}
                       >
                         <Mic className="w-3 h-3" />
                         <span>
@@ -3051,11 +3006,10 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={() => toggleVoiceInput("solution")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                          isListening && voiceTarget === "solution"
-                            ? "bg-rose-600 border-rose-400 text-white"
-                            : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "solution"
+                          ? "bg-rose-600 border-rose-400 text-white"
+                          : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                          }`}
                       >
                         <Mic className="w-3 h-3" />
                         <span>
@@ -3155,11 +3109,10 @@ export default function TEBrainApp() {
                       <button
                         key={cat}
                         onClick={() => setSelectedCategory(cat)}
-                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
-                          selectedCategory === cat
-                            ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                            : "bg-slate-900 border-slate-800 text-slate-400"
-                        }`}
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium border transition ${selectedCategory === cat
+                          ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                          : "bg-slate-900 border-slate-800 text-slate-400"
+                          }`}
                       >
                         {cat}
                       </button>
@@ -3236,11 +3189,10 @@ export default function TEBrainApp() {
                   <button
                     type="button"
                     onClick={() => setSettingsSubTab("tokens")}
-                    className={`py-2 rounded-lg text-xs font-semibold transition ${
-                      settingsSubTab === "tokens"
-                        ? "bg-cyan-500 text-slate-950 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${settingsSubTab === "tokens"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                      }`}
                   >
                     Thống kê Token
                   </button>
@@ -3248,11 +3200,10 @@ export default function TEBrainApp() {
                   <button
                     type="button"
                     onClick={() => setSettingsSubTab("database")}
-                    className={`py-2 rounded-lg text-xs font-semibold transition ${
-                      settingsSubTab === "database"
-                        ? "bg-cyan-500 text-slate-950 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${settingsSubTab === "database"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                      }`}
                   >
                     Dung lượng DB
                   </button>
@@ -3260,11 +3211,10 @@ export default function TEBrainApp() {
                   <button
                     type="button"
                     onClick={() => setSettingsSubTab("models")}
-                    className={`py-2 rounded-lg text-xs font-semibold transition ${
-                      settingsSubTab === "models"
-                        ? "bg-cyan-500 text-slate-950 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
+                    className={`py-2 rounded-lg text-xs font-semibold transition ${settingsSubTab === "models"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                      }`}
                   >
                     Chọn Model AI
                   </button>
@@ -3293,7 +3243,7 @@ export default function TEBrainApp() {
                                 2,
                                 (tokenTelemetry.today.totalTokens /
                                   tokenTelemetry.limits.dailyTokenQuota) *
-                                  100
+                                100
                               )
                             )}%`,
                           }}
@@ -3317,7 +3267,7 @@ export default function TEBrainApp() {
                             {Math.max(
                               0,
                               tokenTelemetry.limits.dailyTokenQuota -
-                                tokenTelemetry.today.totalTokens
+                              tokenTelemetry.today.totalTokens
                             ).toLocaleString()}{" "}
                             tokens
                           </strong>
@@ -3416,8 +3366,8 @@ export default function TEBrainApp() {
                                     {log.actionType === "chat"
                                       ? "Chat RAG"
                                       : log.actionType === "embedding"
-                                      ? "Vector"
-                                      : "Vision"}
+                                        ? "Vector"
+                                        : "Vision"}
                                   </span>
                                   <span className="text-xs font-mono text-slate-200 truncate">
                                     {log.modelName}
@@ -3478,7 +3428,7 @@ export default function TEBrainApp() {
                               width: `${Math.min(
                                 100,
                                 (dbStorage.fsUsedSize / dbStorage.fsTotalSize) *
-                                  100
+                                100
                               )}%`,
                             }}
                           />
@@ -3532,7 +3482,7 @@ export default function TEBrainApp() {
                                 2,
                                 (dbStorage.totalDbSize /
                                   dbStorage.atlasFreeLimitBytes) *
-                                  100
+                                100
                               )
                             )}%`,
                           }}
@@ -3635,11 +3585,10 @@ export default function TEBrainApp() {
                               fetchSystemStatus(m.id);
                               showToast(`Đã chọn Model: ${m.name}`);
                             }}
-                            className={`w-full text-left rounded-2xl p-3.5 border transition flex items-start justify-between gap-2.5 ${
-                              isSelected
-                                ? "bg-cyan-950/40 border-cyan-400"
-                                : "bg-slate-900 border-slate-800 hover:border-slate-700"
-                            }`}
+                            className={`w-full text-left rounded-2xl p-3.5 border transition flex items-start justify-between gap-2.5 ${isSelected
+                              ? "bg-cyan-950/40 border-cyan-400"
+                              : "bg-slate-900 border-slate-800 hover:border-slate-700"
+                              }`}
                           >
                             <div className="space-y-1 min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
@@ -3647,11 +3596,10 @@ export default function TEBrainApp() {
                                   {m.name}
                                 </span>
                                 <span
-                                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                                    isSelected
-                                      ? "bg-cyan-500 text-slate-950"
-                                      : "bg-slate-800 text-slate-300"
-                                  }`}
+                                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isSelected
+                                    ? "bg-cyan-500 text-slate-950"
+                                    : "bg-slate-800 text-slate-300"
+                                    }`}
                                 >
                                   {m.badge}
                                 </span>
@@ -3674,11 +3622,10 @@ export default function TEBrainApp() {
                             </div>
 
                             <div
-                              className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
-                                isSelected
-                                  ? "border-cyan-400 bg-cyan-500 text-slate-950"
-                                  : "border-slate-700 bg-slate-950"
-                              }`}
+                              className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${isSelected
+                                ? "border-cyan-400 bg-cyan-500 text-slate-950"
+                                : "border-slate-700 bg-slate-950"
+                                }`}
                             >
                               {isSelected && (
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -3735,11 +3682,10 @@ export default function TEBrainApp() {
         <nav className="shrink-0 bg-[#0b111e] border-t border-slate-800/90 px-1.5 py-1.5 grid grid-cols-5 gap-1">
           <button
             onClick={() => setActiveTab("chat")}
-            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
-              activeTab === "chat"
-                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${activeTab === "chat"
+              ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+              }`}
           >
             <Bot className="w-5 h-5" />
             <span className="text-[10px]">Chat AI</span>
@@ -3747,11 +3693,10 @@ export default function TEBrainApp() {
 
           <button
             onClick={() => setActiveTab("analytics")}
-            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
-              activeTab === "analytics"
-                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${activeTab === "analytics"
+              ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+              }`}
           >
             <BarChart3 className="w-5 h-5" />
             <span className="text-[10px]">Phân tích</span>
@@ -3759,11 +3704,10 @@ export default function TEBrainApp() {
 
           <button
             onClick={() => setActiveTab("quick-note")}
-            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
-              activeTab === "quick-note"
-                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${activeTab === "quick-note"
+              ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+              }`}
           >
             <PlusCircle className="w-5 h-5" />
             <span className="text-[10px]">Ghi nhanh</span>
@@ -3771,11 +3715,10 @@ export default function TEBrainApp() {
 
           <button
             onClick={() => setActiveTab("vault")}
-            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition relative ${
-              activeTab === "vault"
-                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition relative ${activeTab === "vault"
+              ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+              }`}
           >
             <FolderKanban className="w-5 h-5" />
             <span className="text-[10px]">Kho lưu</span>
@@ -3791,11 +3734,10 @@ export default function TEBrainApp() {
               setActiveTab("settings");
               fetchSystemStatus();
             }}
-            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${
-              activeTab === "settings"
-                ? "text-cyan-400 bg-cyan-500/10 font-semibold"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
+            className={`flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition ${activeTab === "settings"
+              ? "text-cyan-400 bg-cyan-500/10 font-semibold"
+              : "text-slate-400 hover:text-slate-200"
+              }`}
           >
             <Settings className="w-5 h-5" />
             <span className="text-[10px]">Hệ thống</span>
@@ -3849,11 +3791,10 @@ export default function TEBrainApp() {
             <div className="flex items-center justify-between pt-1">
               <button
                 onClick={() => {
-                  const q = `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${
-                    selectedItemModal.errorCode
-                      ? `(${selectedItemModal.errorCode})`
-                      : ""
-                  }`;
+                  const q = `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${selectedItemModal.errorCode
+                    ? `(${selectedItemModal.errorCode})`
+                    : ""
+                    }`;
                   setSelectedItemModal(null);
                   setActiveTab("chat");
                   handleSendMessage(q);
