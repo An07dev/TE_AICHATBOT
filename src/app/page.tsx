@@ -3471,9 +3471,6 @@ export default function TEBrainApp() {
                         <span className="text-xs font-bold text-white">
                           Hạn Mức Chuẩn MongoDB Atlas Free (512 MB)
                         </span>
-                        <span className="text-xs font-mono font-bold text-cyan-300">
-                          {formatBytes(dbStorage.totalDbSize)} / 512 MB
-                        </span>
                       </div>
 
                       <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
