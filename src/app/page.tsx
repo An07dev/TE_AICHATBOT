@@ -36,6 +36,9 @@ import {
   History,
   FileText,
   MessageSquarePlus,
+  Lock,
+  ShieldCheck,
+  Delete,
 } from "lucide-react";
 import {
   parseAndAnalyzeTestLog,
@@ -269,6 +272,13 @@ function FormattedMessage({
 }
 
 export default function TEBrainApp() {
+  // Master PIN Auth Gate state
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>("");
+  const [pinError, setPinError] = useState<string>("");
+  const [verifyingPin, setVerifyingPin] = useState<boolean>(false);
+
   const [activeTab, setActiveTab] = useState<
     "chat" | "analytics" | "quick-note" | "vault" | "settings"
   >("chat");
@@ -560,11 +570,78 @@ export default function TEBrainApp() {
     }
   };
 
+  const handleVerifyPin = async (codeToVerify?: string) => {
+    const cleanPin = (codeToVerify ?? pinInput).trim();
+    if (!cleanPin || verifyingPin) return;
+
+    setVerifyingPin(true);
+    setPinError("");
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: cleanPin }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setPinError(data.error || "Mã PIN không chính xác!");
+        setPinInput("");
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setPinInput("");
+      setPinError("");
+      const savedModel =
+        localStorage.getItem("te_brain_selected_model") || "gemini-3.6-flash";
+      fetchKnowledge();
+      fetchSystemStatus(savedModel);
+      showToast("🔓 Đã mở khóa trạm TE Brain AI!");
+    } catch {
+      setPinError("Không thể kết nối máy chủ xác thực.");
+    } finally {
+      setVerifyingPin(false);
+    }
+  };
+
+  const handlePinDigitPress = (digit: string) => {
+    if (verifyingPin) return;
+    setPinError("");
+    if (digit === "CLEAR") {
+      setPinInput("");
+      return;
+    }
+    if (digit === "BACK") {
+      setPinInput((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (pinInput.length < 6) {
+      const next = `${pinInput}${digit}`;
+      setPinInput(next);
+      if (next.length === 6) {
+        handleVerifyPin(next);
+      }
+    }
+  };
+
+  const handleLockApp = async () => {
+    stopSpeaking();
+    try {
+      await fetch("/api/auth", { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+    setIsAuthenticated(false);
+    setPinInput("");
+    showToast("🔒 Đã khóa bảo mật TE Brain AI.");
+  };
+
   useEffect(() => {
+    if (!isAuthenticated) return;
     if (activeTab === "settings" || dbStorage.totalDbSize === 0) {
       fetchSystemStatus();
     }
-  }, [activeTab, dbStorage.totalDbSize]);
+  }, [activeTab, dbStorage.totalDbSize, isAuthenticated]);
 
   useEffect(() => {
     const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
@@ -572,8 +649,18 @@ export default function TEBrainApp() {
       localStorage.getItem("te_brain_selected_model") || "gemini-3.6-flash";
     if (savedKey) setCustomApiKey(savedKey);
     setSelectedModel(savedModel);
-    fetchKnowledge();
-    fetchSystemStatus(savedModel);
+
+    fetch("/api/auth", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+          fetchKnowledge();
+          fetchSystemStatus(savedModel);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
   }, []);
 
   useEffect(() => {
@@ -1420,6 +1507,141 @@ export default function TEBrainApp() {
     startGeminiAudioFallback(target);
   };
 
+  if (!authChecked) {
+    return (
+      <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 animate-pulse">
+            <Cpu className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-xs text-slate-400 font-medium">
+            Đang kiểm tra phiên bảo mật...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex items-center justify-center px-4 overflow-hidden">
+        <div className="w-full max-w-sm bg-[#0b111e] border border-slate-800/90 rounded-3xl p-6 shadow-2xl space-y-5">
+          {/* Header */}
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+              <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-base text-white tracking-tight">
+                Khóa Bảo Mật TE Brain AI
+              </h1>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Nhập Mã PIN 6 số để mở khóa trạm kỹ thuật
+              </p>
+            </div>
+          </div>
+
+          {/* 6 PIN Dots Indicator + Hidden/Direct Keyboard Input */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleVerifyPin();
+            }}
+            className="space-y-3"
+          >
+            <div className="flex items-center justify-center gap-3 py-1">
+              {[0, 1, 2, 3, 4, 5].map((i) => {
+                const filled = i < pinInput.length;
+                return (
+                  <div
+                    key={i}
+                    className={`w-3.5 h-3.5 rounded-full transition-all duration-150 ${
+                      filled
+                        ? "bg-cyan-400 scale-110 shadow-sm shadow-cyan-400/60"
+                        : "bg-slate-800 border border-slate-700"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pinInput}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                setPinError("");
+                setPinInput(val);
+                if (val.length === 6) {
+                  handleVerifyPin(val);
+                }
+              }}
+              placeholder="Gõ hoặc bấm bàn phím số bên dưới"
+              className="w-full h-9 rounded-xl bg-slate-950/90 border border-slate-800 focus:border-cyan-500 focus:outline-none text-center font-mono text-xs tracking-widest text-cyan-300 placeholder-slate-600"
+              autoFocus
+            />
+
+            {pinError && (
+              <div className="px-3 py-2 rounded-xl bg-rose-950/80 border border-rose-500/40 text-center text-xs text-rose-200 flex items-center justify-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span>{pinError}</span>
+              </div>
+            )}
+          </form>
+
+          {/* 3x4 Touch Numeric Keypad for Mobile */}
+          <div className="grid grid-cols-3 gap-2.5">
+            {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
+              <button
+                key={num}
+                type="button"
+                disabled={verifyingPin}
+                onClick={() => handlePinDigitPress(num)}
+                className="h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-slate-800/90 text-base font-bold text-white transition flex items-center justify-center shadow-sm"
+              >
+                {num}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              disabled={verifyingPin}
+              onClick={() => handlePinDigitPress("CLEAR")}
+              className="h-12 rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-slate-800 text-xs font-semibold text-slate-400 hover:text-rose-300 transition flex items-center justify-center"
+            >
+              Xóa hết
+            </button>
+
+            <button
+              type="button"
+              disabled={verifyingPin}
+              onClick={() => handlePinDigitPress("0")}
+              className="h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 border border-slate-800/90 text-base font-bold text-white transition flex items-center justify-center shadow-sm"
+            >
+              0
+            </button>
+
+            <button
+              type="button"
+              disabled={verifyingPin}
+              onClick={() => handlePinDigitPress("BACK")}
+              className="h-12 rounded-2xl bg-slate-950 hover:bg-slate-900 active:scale-95 border border-slate-800 text-slate-300 hover:text-cyan-300 transition flex items-center justify-center"
+              title="Xóa 1 số"
+            >
+              <Delete className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-[11px] text-center text-slate-500">
+            Phiên đăng nhập tự động lưu 30 ngày trên thiết bị này
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex justify-center overflow-hidden">
       {/* Toast Notification */}
@@ -1496,6 +1718,14 @@ export default function TEBrainApp() {
               title="Làm mới"
             >
               <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={handleLockApp}
+              className="h-7.5 w-7.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-amber-400 hover:text-rose-300 border border-slate-700/80 flex items-center justify-center transition"
+              title="Khóa màn hình bảo mật"
+            >
+              <Lock className="w-3.5 h-3.5" />
             </button>
           </div>
         </header>
