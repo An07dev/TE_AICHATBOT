@@ -121,6 +121,33 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+const VIETNAMESE_STOP_WORDS = new Set([
+  "la", "va", "cua", "co", "khong", "bi", "loi", "tren", "tram", "cach",
+  "xu", "ly", "nhu", "the", "nao", "thi", "lam", "sao", "cho", "khi",
+  "sau", "truoc", "trong", "ngoai", "voi", "nhung", "cac", "mot", "nay",
+  "do", "tai", "ve", "ire", "nguyen", "nhan", "huong", "dan", "kiem", "tra",
+  "là", "và", "của", "có", "không", "bị", "lỗi", "trên", "trạm", "cách",
+  "xử", "lý", "như", "thế", "nào", "thì", "làm", "sao", "cho", "khi",
+  "sau", "trước", "trong", "ngoài", "với", "những", "các", "một", "này",
+  "đó", "tại", "về", "nguyên", "nhân", "hướng", "dẫn", "kiểm", "tra",
+]);
+
+// Cross-lingual TE terminology bridge (Vietnamese <-> Chinese <-> English)
+const CROSS_LINGUAL_TE_TERMS: Array<[string[], string[]]> = [
+  [["bia mộ", "dựng đứng", "tombstone"], ["立碑", "tombstone"]],
+  [["kem hàn", "solder paste"], ["锡膏", "solder paste"]],
+  [["lưới in", "stencil"], ["钢网", "stencil"]],
+  [["đầu hút", "nozzle"], ["吸嘴", "nozzle"]],
+  [["lò hàn", "reflow"], ["回流焊", "reflow"]],
+  [["kim đo", "pogo pin", "pogo"], ["探针", "pogo"]],
+  [["đồ gá", "jig", "fixture"], ["治具", "夹具", "fixture", "jig"]],
+  [["báo giả", "lỗi ảo", "false fail", "retest ok"], ["误测", "假fail", "复测pass", "retest"]],
+  [["chập mạch", "ngắn mạch", "short"], ["短路", "short"]],
+  [["hở mạch", "hở chân", "open", "hàn giả"], ["开路", "虚焊", "空焊", "open"]],
+  [["suy hao", "path loss", "rf"], ["衰减", "线损", "射频", "path loss"]],
+  [["mẫu chuẩn", "golden sample"], ["金样", "golden sample"]],
+];
+
 export function keywordScoreBoost(
   query: string,
   item: {
@@ -144,14 +171,31 @@ export function keywordScoreBoost(
     boost += 0.2;
   }
 
-  const tokens = q.split(/\s+/).filter((w) => w.length >= 2);
+  const targetText = `${item.title} ${item.errorCode || ""} ${item.station || ""} ${(item.tags || []).join(" ")} ${item.content}`.toLowerCase();
+
+  // Technical keyword match (excluding generic Vietnamese stop words)
+  const tokens = q
+    .split(/[\s,.;:?!/()[\]"']+/)
+    .filter((w) => w.length >= 2 && !VIETNAMESE_STOP_WORDS.has(w));
+
   if (tokens.length > 0) {
-    const targetText = `${item.title} ${item.errorCode || ""} ${item.station || ""} ${(item.tags || []).join(" ")} ${item.content}`.toLowerCase();
     let matched = 0;
     for (const token of tokens) {
       if (targetText.includes(token)) matched++;
     }
     boost += (matched / tokens.length) * 0.15;
+  }
+
+  // Cross-lingual Chinese/English/Vietnamese technical concept boost
+  for (const [vnTerms, zhEnTerms] of CROSS_LINGUAL_TE_TERMS) {
+    const queryHasVn = vnTerms.some((t) => q.includes(t));
+    const docHasZhEn = zhEnTerms.some((t) => targetText.includes(t));
+    const queryHasZhEn = zhEnTerms.some((t) => q.includes(t));
+    const docHasVn = vnTerms.some((t) => targetText.includes(t));
+
+    if ((queryHasVn && docHasZhEn) || (queryHasZhEn && docHasVn)) {
+      boost += 0.12;
+    }
   }
 
   return boost;
@@ -201,12 +245,13 @@ export async function generateRAGResponse(params: {
   const systemInstruction = `Bạn là "TE Brain AI" — Trợ lý Kỹ sư Kiểm thử (Test Engineer - TE) cá nhân đắc lực và chuyên nghiệp.
 Nhiệm vụ của bạn:
 1. Ưu tiên tuyệt đối việc khai thác thông tin từ [KHO TRI THỨC CÁ NHÂN CỦA TÔI] bên dưới để giải đáp thắc mắc về mã lỗi, trạm test (ICT, FCT, AOI, SMT, RF, SFC/MES, Jig/Fixture), SOP và hướng dẫn xử lý sự cố (Troubleshooting).
-2. Khi sử dụng thông tin từ kho tri thức, hãy trích dẫn rõ tên tài liệu/mã lỗi (ví dụ: "Theo ghi chú [Mã lỗi / Tên tài liệu]...").
-3. Trình bày câu trả lời súc tích, rõ ràng, dễ đọc nhanh trên màn hình điện thoại khi đang đứng tại chuyền sản xuất / trạm máy:
+2. HỖ TRỢ ĐA NGÔN NGỮ XUYÊN BIÊN GIỚI (CROSS-LINGUAL RAG): Nếu tài liệu trong Kho Tri Thức được viết bằng **Tiếng Trung (中文)** hoặc **Tiếng Anh (English)** mà người dùng hỏi bằng **Tiếng Việt**, bạn hãy tự động đọc hiểu, dịch chuẩn xác sang **Tiếng Việt chuyên ngành TE** và giữ lại các thuật ngữ/mã lỗi gốc Tiếng Trung hoặc Tiếng Anh trong ngoặc đơn — ví dụ: "Lưới in kem hàn (钢网 / Stencil)", "Đầu hút linh kiện (吸嘴 / Nozzle)" — để kỹ sư dễ đối chiếu trên giao diện máy.
+3. Khi sử dụng thông tin từ kho tri thức, hãy trích dẫn rõ tên tài liệu/mã lỗi (ví dụ: "Theo ghi chú [Mã lỗi / Tên tài liệu]...").
+4. Trình bày câu trả lời bằng Tiếng Việt súc tích, rõ ràng, dễ đọc nhanh trên màn hình điện thoại khi đang đứng tại chuyền sản xuất / trạm máy:
    - **Chẩn đoán / Nguyên nhân gốc (Root Cause)**
    - **Các bước xử lý (Action / SOP từng bước)**
    - **Lưu ý kiểm tra / Phòng ngừa**
-4. Nếu câu hỏi chưa có trong Kho Tri Thức cá nhân, hãy báo rõ "Trong kho dữ liệu cá nhân chưa có ca lỗi này, dưới đây là gợi ý chuyên môn TE để bạn kiểm tra:" rồi đưa ra hướng dẫn kỹ thuật chuẩn xác để người dùng xử lý và lưu lại vào sổ tay.`;
+5. Nếu câu hỏi chưa có trong Kho Tri Thức cá nhân, hãy báo rõ "Trong kho dữ liệu cá nhân chưa có ca lỗi này, dưới đây là gợi ý chuyên môn TE để bạn kiểm tra:" rồi đưa ra hướng dẫn kỹ thuật chuẩn xác để người dùng xử lý và lưu lại vào sổ tay.`;
 
   const historyText =
     params.history && params.history.length > 0
