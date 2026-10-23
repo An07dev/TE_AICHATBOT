@@ -330,7 +330,9 @@ export default function TEBrainApp() {
     glossary: Array<{ zh: string; pinyin: string; vi: string; en: string }>;
     modelUsed: string;
   } | null>(null);
+  const [extractingTransDoc, setExtractingTransDoc] = useState<boolean>(false);
   const transImageInputRef = useRef<HTMLInputElement>(null);
+  const transDocInputRef = useRef<HTMLInputElement>(null);
 
   // Session History & Incident Report state
   const [chatSessions, setChatSessions] = useState<ChatSessionItem[]>([]);
@@ -1882,18 +1884,65 @@ export default function TEBrainApp() {
     startGeminiAudioFallback(target);
   };
 
-  const handleLoadSampleChineseSop = () => {
-    setTransDirection("zh-vi");
-    setTransInput(
-      `【TE工程技术规范 - 产线SOP通知】\n工站：FCT-02 & RF屏蔽箱测试站\n异常代码：ERR-FCT-104 (3V3电源短路误测) / E-901 (RF TX功率偏低)\n1. 不良现象：夜班产线FCT-02工站直通率(FPY)掉至86%，大量机台报ERR-FCT-104假不良(Retest OK)，同时RF屏蔽箱报E-901插损超标。\n2. 根本原因：测试治具(Fixture)顶针/探针(Pogo Pin)连续按压超过50,000次后残留助焊剂(Flux)导致接触阻抗变大；RF测试射频线接头松动且未按时做金样(Golden Sample)首件点检。\n3. 改善与标准作业步骤(SOP)：\n- 第一步：每班开线前必须使用PASS金样与FAIL坏机各跑3次进行首件点检(FAI)，确认上位机软件版本为V2.4并正常过站上传SFC/MES。\n- 第二步：使用无尘布蘸取IPA异丙醇清洁针床探针头部，用万用表测量3V3探针阻抗需小于0.15Ω；若顶针弹簧卡死或磨损必须立即更换。\n- 第三步：检查气缸下压气压保持在0.45~0.55MPa，锁紧RF屏蔽箱SMA衰减器接头，重新校准线损(Path Loss < 1.8dB)。`
-    );
-    showToast(
-      appLang === "zh"
-        ? "已载入中文产线 SOP 示例！"
-        : appLang === "en"
-          ? "Loaded sample Chinese factory SOP!"
-          : "✨ Đã nạp mẫu thông báo SOP Tiếng Trung thực tế tại xưởng!"
-    );
+  const handleTransDocUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+
+    // If image selected via file picker, route to image OCR handler
+    if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
+      await handleTransImageSelect(e);
+      return;
+    }
+
+    setExtractingTransDoc(true);
+    try {
+      // Fast local read for plain text files (.txt, .csv, .log, .md, .json, .ini)
+      if (["txt", "csv", "log", "md", "json", "ini", "xml"].includes(ext)) {
+        const textContent = await file.text();
+        setTransInput(textContent.trim().slice(0, 12000));
+        showToast(
+          appLang === "zh"
+            ? `📂 已读取文件: ${file.name}`
+            : appLang === "en"
+              ? `📂 Loaded file: ${file.name}`
+              : `📂 Đã nạp nội dung từ file: ${file.name}`
+        );
+        return;
+      }
+
+      // Server extraction for .pdf, .docx, etc.
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/translate-sop", {
+        method: "PUT",
+        headers: savedKey ? { "x-gemini-key": savedKey } : undefined,
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể đọc file tài liệu này");
+      }
+
+      setTransInput(data.extractedText || "");
+      showToast(
+        appLang === "zh"
+          ? `📂 已提取文档内容: ${file.name}`
+          : appLang === "en"
+            ? `📂 Extracted text from: ${file.name}`
+            : `📂 Đã trích xuất văn bản từ: ${file.name}`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi đọc file tài liệu";
+      showToast(msg, "error");
+    } finally {
+      setExtractingTransDoc(false);
+      e.target.value = "";
+    }
   };
 
   const handleTransImageSelect = async (
@@ -3746,12 +3795,25 @@ export default function TEBrainApp() {
                         </span>
 
                         <div className="flex items-center gap-1.5 shrink-0">
+                          <input
+                            ref={transDocInputRef}
+                            type="file"
+                            accept=".pdf,.docx,.txt,.md,.csv,.log,.json,.ini,.png,.jpg,.jpeg,.webp"
+                            onChange={handleTransDocUpload}
+                            className="hidden"
+                          />
                           <button
                             type="button"
-                            onClick={handleLoadSampleChineseSop}
-                            className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-[11px] font-medium whitespace-nowrap transition"
+                            disabled={extractingTransDoc}
+                            onClick={() => transDocInputRef.current?.click()}
+                            className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-[11px] font-medium flex items-center gap-1 whitespace-nowrap transition disabled:opacity-50"
                           >
-                            {t.sampleZhSopBtn}
+                            <Upload className="w-3 h-3 shrink-0" />
+                            <span>
+                              {extractingTransDoc
+                                ? t.extractingDocBtn
+                                : t.uploadDocForTransBtn}
+                            </span>
                           </button>
 
                           <input

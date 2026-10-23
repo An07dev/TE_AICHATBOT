@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { TokenUsage } from "@/models/TokenUsage";
-import { getEffectiveApiKey, getLocalDateKey } from "@/lib/gemini";
+import {
+  extractFileContentWithGemini,
+  getEffectiveApiKey,
+  getLocalDateKey,
+} from "@/lib/gemini";
+import mammoth from "mammoth";
 
 const MODELS = [
   "gemini-3.5-flash-lite",
@@ -363,6 +368,77 @@ ${text || "(Vui lòng đọc nội dung từ hình ảnh tài liệu đính kèm
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Lỗi xử lý dịch thuật SOP";
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/translate-sop: Extract raw text from uploaded .docx, .pdf, .txt, .csv, .log files for translation
+export async function PUT(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    const apiKey = req.headers.get("x-gemini-key") || undefined;
+
+    if (!file) {
+      return NextResponse.json(
+        { success: false, error: "Vui lòng chọn file tài liệu." },
+        { status: 400 }
+      );
+    }
+
+    const fileName = file.name;
+    const ext = fileName.split(".").pop()?.toLowerCase() || "";
+    const buffer = Buffer.from(await file.arrayBuffer());
+    let extractedText = "";
+
+    if (["txt", "md", "csv", "log", "json", "ini", "xml"].includes(ext)) {
+      extractedText = buffer.toString("utf-8");
+    } else if (ext === "docx") {
+      const result = await mammoth.extractRawText({ buffer });
+      extractedText = result.value;
+    } else if (
+      ext === "pdf" ||
+      ["png", "jpg", "jpeg", "webp"].includes(ext)
+    ) {
+      const mimeMap: Record<string, string> = {
+        pdf: "application/pdf",
+        png: "image/png",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        webp: "image/webp",
+      };
+      const mimeType = file.type || mimeMap[ext] || "application/pdf";
+      extractedText = await extractFileContentWithGemini({
+        base64Data: buffer.toString("base64"),
+        mimeType,
+        fileName,
+        customKey: apiKey,
+      });
+    } else {
+      extractedText = buffer.toString("utf-8");
+    }
+
+    if (!extractedText || !extractedText.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Không trích xuất được văn bản từ file này.",
+        },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      fileName,
+      extractedText: extractedText.trim().slice(0, 12000),
+    });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Lỗi đọc nội dung file tài liệu";
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }
