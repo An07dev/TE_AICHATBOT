@@ -3,10 +3,11 @@ import { connectDB } from "@/lib/mongodb";
 import { TokenUsage } from "@/models/TokenUsage";
 import { getEffectiveApiKey, getLocalDateKey } from "@/lib/gemini";
 
+// Fast models first for low-latency voice transcription
 const MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
 ];
 
 export async function POST(req: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { audioBase64, mimeType = "audio/webm" } = body;
+    const { audioBase64, mimeType = "audio/mp4", lang = "vi" } = body;
     if (!audioBase64) {
       return NextResponse.json(
         { success: false, error: "Không nhận được dữ liệu âm thanh" },
@@ -32,8 +33,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt =
-      "Hãy chuyển đoạn ghi âm giọng nói của Kỹ sư TE này thành văn bản tiếng Việt chính xác (giữ nguyên các thuật ngữ kỹ thuật như FCT, ICT, AOI, SMT, RF, SFC, MES, Pogo Pin, Golden Sample, mã lỗi ERR-...). Chỉ trả về đúng nội dung văn bản người dùng đã nói, không thêm bất kỳ lời giải thích nào.";
+    // Strip any ";codecs=..." suffix (e.g. "audio/mp4;codecs=mp4a.40.2" on iOS Safari
+    // or "audio/webm;codecs=opus" on Chrome) because Gemini inlineData requires clean MIME types
+    const rawMime = String(mimeType || "audio/mp4")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const cleanMimeType =
+      rawMime === "audio/x-m4a" || rawMime === "audio/m4a"
+        ? "audio/mp4"
+        : rawMime || "audio/mp4";
+
+    const langHint =
+      lang === "zh"
+        ? "tiếng Trung Giản Thể (简体中文)"
+        : lang === "en"
+          ? "tiếng Anh (English)"
+          : "tiếng Việt";
+
+    const prompt = `Hãy chuyển đoạn ghi âm giọng nói của Kỹ sư TE này thành văn bản chính xác (ưu tiên ngôn ngữ người nói đang dùng, đặc biệt là ${langHint}, và giữ nguyên các thuật ngữ kỹ thuật như FCT, ICT, AOI, SMT, RF, SFC, MES, Pogo Pin, Golden Sample, Cpk, mã lỗi ERR-...). Chỉ trả về đúng nội dung văn bản người dùng đã nói, tuyệt đối không thêm bất kỳ lời giải thích hay dấu ngoặc kép nào. Nếu hoàn toàn chỉ có tiếng ồn không có giọng nói, trả về chuỗi rỗng.`;
+
+    let lastErrorDetail = "";
 
     for (const model of MODELS) {
       try {
@@ -48,7 +68,7 @@ export async function POST(req: NextRequest) {
                   { text: prompt },
                   {
                     inlineData: {
-                      mimeType,
+                      mimeType: cleanMimeType,
                       data: audioBase64,
                     },
                   },
@@ -57,14 +77,25 @@ export async function POST(req: NextRequest) {
             ],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 512,
+              maxOutputTokens: 2048,
             },
           }),
         });
 
         const data = await res.json();
-        const transcript = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (res.ok && transcript) {
+        if (!res.ok) {
+          lastErrorDetail = data?.error?.message || `HTTP ${res.status}`;
+          continue;
+        }
+
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.find(
+          (p: { text?: string; thought?: boolean }) =>
+            typeof p.text === "string" && !p.thought
+        );
+        const transcript = (textPart?.text || parts[0]?.text || "").trim();
+
+        if (transcript) {
           const meta = data.usageMetadata || {};
           await TokenUsage.create({
             dateKey: getLocalDateKey(),
@@ -78,17 +109,22 @@ export async function POST(req: NextRequest) {
 
           return NextResponse.json({
             success: true,
-            transcript: transcript.trim(),
+            transcript,
             modelUsed: model,
           });
         }
-      } catch {
-        // try next model
+      } catch (e) {
+        lastErrorDetail = e instanceof Error ? e.message : "Network error";
       }
     }
 
     return NextResponse.json(
-      { success: false, error: "Không thể nhận diện giọng nói, vui lòng thử lại." },
+      {
+        success: false,
+        error:
+          lastErrorDetail ||
+          "Không nghe rõ giọng nói, vui lòng nói to hơn hoặc thử lại.",
+      },
       { status: 500 }
     );
   } catch (err: unknown) {

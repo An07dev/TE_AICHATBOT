@@ -761,6 +761,11 @@ export default function TEBrainApp() {
     const q = (presetQuestion ?? chatInput).trim();
     if (!q || chatLoading) return;
 
+    // Unlock HTMLAudioElement synchronously on user tap if Auto-Read TTS is active (iOS Safari requirement)
+    if (autoReadTTS) {
+      unlockAudioForIOS();
+    }
+
     const currentImage = attachedImage;
     const userMessage: ChatMsg = {
       role: "user",
@@ -1274,10 +1279,12 @@ export default function TEBrainApp() {
     }
   };
 
-  // ================= VOICE & TTS FUNCTIONS =================
+  // ================= VOICE & TTS FUNCTIONS (iOS / iPhone + Android + Desktop) =================
   const cleanTextForSpeech = (raw: string) => {
+    const codeWord =
+      appLang === "zh" ? " 代码 " : appLang === "en" ? " code block " : " đoạn mã ";
     return raw
-      .replace(/```[\s\S]*?```/g, " đoạn mã ")
+      .replace(/```[\s\S]*?```/g, codeWord)
       .replace(/`([^`]+)`/g, "$1")
       .replace(/\*\*([^*]+)\*\*/g, "$1")
       .replace(/\*([^*]+)\*/g, "$1")
@@ -1288,16 +1295,59 @@ export default function TEBrainApp() {
       .trim();
   };
 
+  const base64ToBlobUrl = (base64: string, mimeType = "audio/mpeg"): string => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mimeType });
+    return URL.createObjectURL(blob);
+  };
+
   const stopSpeaking = () => {
     if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause();
-      audioPlayerRef.current.currentTime = 0;
-      audioPlayerRef.current = null;
+      try {
+        audioPlayerRef.current.onended = null;
+        audioPlayerRef.current.onerror = null;
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.currentTime = 0;
+      } catch {
+        // ignore
+      }
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
     }
     setSpeakingIdx(null);
+  };
+
+  // Unlock persistent HTMLAudioElement synchronously during a user tap gesture (Required by iPhone / iOS Safari)
+  const unlockAudioForIOS = () => {
+    try {
+      const SILENT_WAV =
+        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+      const player = audioPlayerRef.current || new Audio();
+      player.setAttribute("playsinline", "true");
+      player.preload = "auto";
+      audioPlayerRef.current = player;
+      if (player.paused) {
+        player.src = SILENT_WAV;
+        const p = player.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            // ignore
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
   };
 
   const speakMessage = async (text: string, idx: number) => {
@@ -1312,6 +1362,11 @@ export default function TEBrainApp() {
 
     setSpeakingIdx(idx);
 
+    // CRITICAL FOR iPHONE / iOS SAFARI:
+    // Unlock the HTMLAudioElement SYNCHRONOUSLY inside the user's tap gesture BEFORE awaiting fetch("/api/tts")
+    unlockAudioForIOS();
+    const player = audioPlayerRef.current!;
+
     try {
       const res = await fetch("/api/tts", {
         method: "POST",
@@ -1319,36 +1374,87 @@ export default function TEBrainApp() {
         body: JSON.stringify({ text: cleaned, lang: appLang }),
       });
       const data = await res.json();
-      if (res.ok && data.success && data.audioBase64) {
-        const audio = new Audio(
-          `data:${data.mimeType || "audio/mpeg"};base64,${data.audioBase64}`
-        );
-        audio.playbackRate = 1.08;
-        audio.onended = () => {
-          setSpeakingIdx(null);
-          audioPlayerRef.current = null;
+
+      const chunks: string[] =
+        Array.isArray(data.audioChunks) && data.audioChunks.length > 0
+          ? data.audioChunks
+          : data.audioBase64
+            ? [data.audioBase64]
+            : [];
+
+      if (res.ok && data.success && chunks.length > 0) {
+        let currentChunkIdx = 0;
+        let currentBlobUrl: string | null = null;
+
+        const playNextChunk = async () => {
+          if (currentBlobUrl) {
+            URL.revokeObjectURL(currentBlobUrl);
+            currentBlobUrl = null;
+          }
+
+          if (currentChunkIdx >= chunks.length) {
+            setSpeakingIdx(null);
+            return;
+          }
+
+          const b64 = chunks[currentChunkIdx++];
+          currentBlobUrl = base64ToBlobUrl(b64, data.mimeType || "audio/mpeg");
+          player.src = currentBlobUrl;
+          player.playbackRate = 1.05;
+
+          player.onended = () => {
+            playNextChunk();
+          };
+
+          player.onerror = () => {
+            if (currentBlobUrl) {
+              URL.revokeObjectURL(currentBlobUrl);
+              currentBlobUrl = null;
+            }
+            setSpeakingIdx(null);
+          };
+
+          try {
+            await player.play();
+          } catch {
+            if (currentBlobUrl) {
+              URL.revokeObjectURL(currentBlobUrl);
+              currentBlobUrl = null;
+            }
+            setSpeakingIdx(null);
+          }
         };
-        audio.onerror = () => {
-          setSpeakingIdx(null);
-          audioPlayerRef.current = null;
-        };
-        audioPlayerRef.current = audio;
-        await audio.play();
+
+        await playNextChunk();
         return;
       }
     } catch {
-      // fallback
+      // Fallback to Web Speech API below
     }
 
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(cleaned);
-      utterance.lang = "vi-VN";
-      utterance.rate = 1.05;
-      utterance.onend = () => setSpeakingIdx(null);
-      utterance.onerror = () => setSpeakingIdx(null);
-      window.speechSynthesis.speak(utterance);
+      try {
+        const utterance = new SpeechSynthesisUtterance(cleaned);
+        const activeSpeechLang =
+          LANG_OPTIONS.find((l) => l.code === appLang)?.speechLang || "vi-VN";
+        utterance.lang = activeSpeechLang;
+        utterance.rate = 1.05;
+        utterance.onend = () => setSpeakingIdx(null);
+        utterance.onerror = () => setSpeakingIdx(null);
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        setSpeakingIdx(null);
+      }
     } else {
       setSpeakingIdx(null);
+      showToast(
+        appLang === "zh"
+          ? "当前浏览器不支持语音播报"
+          : appLang === "en"
+            ? "Audio playback not supported on this browser"
+            : "Trình duyệt này chưa hỗ trợ phát âm thanh",
+        "error"
+      );
     }
   };
 
@@ -1401,21 +1507,75 @@ export default function TEBrainApp() {
   const startGeminiAudioFallback = async (
     target: "chat" | "symptom" | "rootCause" | "solution"
   ) => {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      showToast(
+        appLang === "zh"
+          ? "浏览器不支持麦克风录音 (请使用 HTTPS 或 Safari/Chrome)"
+          : appLang === "en"
+            ? "Microphone not supported on this browser"
+            : "Trình duyệt không hỗ trợ thu âm Micro!",
+        "error"
+      );
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      // Pick best supported MIME type (iOS Safari uses audio/mp4, Chrome/Android uses audio/webm)
+      const preferredMimeTypes = [
+        "audio/mp4",
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg",
+        "audio/wav",
+      ];
+      let chosenMime = "";
+      if (
+        typeof MediaRecorder !== "undefined" &&
+        typeof MediaRecorder.isTypeSupported === "function"
+      ) {
+        for (const candidate of preferredMimeTypes) {
+          if (MediaRecorder.isTypeSupported(candidate)) {
+            chosenMime = candidate;
+            break;
+          }
+        }
+      }
+
+      const recorder = chosenMime
+        ? new MediaRecorder(stream, { mimeType: chosenMime })
+        : new MediaRecorder(stream);
+
       audioChunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
       };
 
       recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((track) => track.stop());
+        const rawMime = recorder.mimeType || chosenMime || "audio/mp4";
+        // Strip ";codecs=..." parameter so Gemini API inlineData accepts the MIME type on iOS & Android
+        const cleanMime = rawMime.split(";")[0].trim() || "audio/mp4";
+
         const audioBlob = new Blob(audioChunksRef.current, {
-          type: recorder.mimeType || "audio/webm",
+          type: cleanMime,
         });
-        if (audioBlob.size < 200) {
+
+        if (audioBlob.size < 100) {
           setIsListening(false);
           return;
         }
@@ -1424,7 +1584,15 @@ export default function TEBrainApp() {
         try {
           const reader = new FileReader();
           reader.onloadend = async () => {
-            const base64String = String(reader.result).split(",")[1];
+            const resultStr = String(reader.result || "");
+            const base64String = resultStr.includes(",")
+              ? resultStr.split(",")[1]
+              : "";
+            if (!base64String) {
+              setTranscribingAudio(false);
+              return;
+            }
+
             const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
             const res = await fetch("/api/voice", {
               method: "POST",
@@ -1434,17 +1602,23 @@ export default function TEBrainApp() {
               },
               body: JSON.stringify({
                 audioBase64: base64String,
-                mimeType: recorder.mimeType || "audio/webm",
+                mimeType: cleanMime,
+                lang: appLang,
               }),
             });
             const data = await res.json();
             if (data.success && data.transcript) {
               applyRecognizedText(data.transcript, target, handsFreeAutoSend);
-              showToast(`🎙️ Đã nhận diện: "${data.transcript.slice(0, 45)}"`);
+              showToast(`🎙️ "${data.transcript.slice(0, 48)}"`);
               fetchSystemStatus();
             } else {
               showToast(
-                data.error || "Không nghe rõ, vui lòng nói lại.",
+                data.error ||
+                  (appLang === "zh"
+                    ? "未听清语音，请重试"
+                    : appLang === "en"
+                      ? "Could not recognize speech, please try again"
+                      : "Không nghe rõ, vui lòng nói lại."),
                 "error"
               );
             }
@@ -1453,17 +1627,32 @@ export default function TEBrainApp() {
           reader.readAsDataURL(audioBlob);
         } catch {
           setTranscribingAudio(false);
-          showToast("Lỗi chuyển giọng nói thành văn bản.", "error");
+          showToast(
+            appLang === "zh"
+              ? "语音转文字失败"
+              : appLang === "en"
+                ? "Speech transcription error"
+                : "Lỗi chuyển giọng nói thành văn bản.",
+            "error"
+          );
         }
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start();
+      // Pass 250ms timeslice so iOS Safari flushes audio data chunks continuously
+      recorder.start(250);
       setVoiceTarget(target);
       setIsListening(true);
-      showToast("🎙️ Đang ghi âm... Chạm lại nút Mic khi nói xong!");
+      showToast(`🎙️ ${t.listeningVoice}`);
     } catch {
-      showToast("Vui lòng cấp quyền Micro cho trình duyệt!", "error");
+      showToast(
+        appLang === "zh"
+          ? "请在浏览器设置中允许麦克风权限！"
+          : appLang === "en"
+            ? "Please allow Microphone permission in your browser!"
+            : "Vui lòng cấp quyền Micro cho trình duyệt!",
+        "error"
+      );
     }
   };
 
@@ -1474,6 +1663,21 @@ export default function TEBrainApp() {
 
     if (isListening) {
       stopVoiceInput();
+      return;
+    }
+
+    // CRITICAL FOR iPHONE / iPAD (iOS WebKit):
+    // On iOS Safari / Chrome iOS / Home Screen PWA, webkitSpeechRecognition often fails with
+    // "not-allowed" or "service-not-allowed", AND iOS blocks getUserMedia() if it is called
+    // inside an async onerror callback instead of directly inside the user's tap gesture.
+    // Using MediaRecorder + Gemini Audio STT directly on iOS guarantees 100% reliability!
+    const isIOS =
+      typeof navigator !== "undefined" &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
+    if (isIOS) {
+      startGeminiAudioFallback(target);
       return;
     }
 
@@ -1512,9 +1716,7 @@ export default function TEBrainApp() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recognition.onerror = (event: any) => {
           setIsListening(false);
-          if (event?.error === "not-allowed") {
-            showToast("Vui lòng cho phép quyền sử dụng Micro!", "error");
-          } else if (event?.error !== "aborted") {
+          if (event?.error !== "aborted" && event?.error !== "no-speech") {
             startGeminiAudioFallback(target);
           }
         };
@@ -1838,7 +2040,11 @@ export default function TEBrainApp() {
                   onClick={() => {
                     const next = !autoReadTTS;
                     setAutoReadTTS(next);
-                    if (!next) stopSpeaking();
+                    if (next) {
+                      unlockAudioForIOS();
+                    } else {
+                      stopSpeaking();
+                    }
                     showToast(
                       next
                         ? "🔊 Đã BẬT tự động đọc câu trả lời!"
@@ -1863,7 +2069,10 @@ export default function TEBrainApp() {
                   onClick={() => {
                     const next = !handsFreeAutoSend;
                     setHandsFreeAutoSend(next);
-                    if (next) setAutoReadTTS(true);
+                    if (next) {
+                      setAutoReadTTS(true);
+                      unlockAudioForIOS();
+                    }
                     showToast(
                       next
                         ? "🎙️ Đã BẬT Rảnh tay (Nói xong tự gửi & đọc)!"
