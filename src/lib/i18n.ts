@@ -158,6 +158,30 @@ export const UI_TEXT = {
     voiceListeningShort: "Đang nghe...",
     savingNoteBtn: "Đang lưu Vector vào MongoDB...",
     saveNoteBtn: "Lưu Sổ Tay & Huấn Luyện AI",
+    // Sub-tabs in Quick Note & Translator UI
+    subQuickNote: "📝 Ghi chú sự cố",
+    subTranslateSop: "🌐 Dịch & Chuẩn hóa SOP",
+    translatorBannerTitle: "🌐 AI Dịch thuật & Chuẩn hóa Tài liệu Kỹ thuật TE (Trung ↔ Việt ↔ Anh)",
+    translatorBannerDesc:
+      "Tự động dịch đúng chuẩn thuật ngữ nhà máy (治具=Jig/Fixture, 探针=Pogo Pin, 误测=NTF, 金样=Golden Sample) và chuẩn hóa thành quy trình SOP/WI.",
+    dirZhToVi: "🇨🇳 Trung ➔ 🇻🇳 Việt (Chuẩn TE)",
+    dirViToZh: "🇻🇳 Việt ➔ 🇨🇳 Trung (Báo cáo HQ)",
+    dirAutoToEn: "🌐 Tự động ➔ 🇺🇸 Anh (Audit)",
+    modeSopLabel: "📋 Chuẩn hóa SOP / WI",
+    modeBilingualLabel: "🔄 Song ngữ Đối chiếu",
+    modeTroubleLabel: "🛠️ Bảng Mã lỗi & FA",
+    sampleZhSopBtn: "✨ Thử mẫu SOP Tiếng Trung",
+    scanChineseImgBtn: "📸 Chụp ảnh chữ Trung",
+    clearInputBtn: "Xóa",
+    transInputPlaceholder:
+      "Dán tài liệu SOP tiếng Trung, tin nhắn WeChat/Lark của chuyên gia (VD: FCT02站位治具顶针脏污导致3V3误测，请每班用酒精清洁探针并用金样点检...) hoặc bấm chụp ảnh màn hình máy...",
+    translateActionBtn: "Dịch & Chuẩn Hóa Tài Liệu Ngay",
+    translatingActionBtn: "Đang dịch thuật ngữ TE & chuẩn hóa SOP...",
+    transResultHeader: "Tài liệu Kỹ thuật Đã Chuẩn Hóa",
+    glossaryHeader: "📚 Bảng Từ Vựng Chuyên Ngành TE Trong Tài Liệu (Kèm Pinyin)",
+    saveTransToVaultBtn: "💾 Lưu Bản Chuẩn Hóa Này Vào Kho Tri Thức RAG",
+    vaultTranslateShortcut:
+      "🌐 Có SOP / Tài liệu Tiếng Trung? Chạm để Dịch & Chuẩn hóa thuật ngữ TE →",
     // Vault Tab
     vaultUploadTitle: "📂 Nạp Tài Liệu SOP / File Vào Bộ Nhớ AI",
     vaultUploadDesc: "Hỗ trợ .pdf, .docx, .txt, .csv, .log & ảnh tài liệu",
@@ -385,6 +409,30 @@ export const UI_TEXT = {
     voiceListeningShort: "Listening...",
     savingNoteBtn: "Saving Vector to MongoDB...",
     saveNoteBtn: "Save Note & Train AI Vector",
+    // Sub-tabs in Quick Note & Translator UI
+    subQuickNote: "📝 Quick Note",
+    subTranslateSop: "🌐 Translate & Standardize SOP",
+    translatorBannerTitle: "🌐 AI Technical Document Translator & SOP Standardizer (ZH ↔ VI ↔ EN)",
+    translatorBannerDesc:
+      "Translates with 100% accurate factory TE terminology (治具=Fixture, 探针=Pogo Pin, 误测=NTF, 金样=Golden Sample) and formats into ISO SOP/WI.",
+    dirZhToVi: "🇨🇳 Chinese ➔ 🇻🇳 Vietnamese (TE)",
+    dirViToZh: "🇻🇳 Vietnamese ➔ 🇨🇳 Chinese (HQ)",
+    dirAutoToEn: "🌐 Auto ➔ 🇺🇸 English (Audit)",
+    modeSopLabel: "📋 Standardize SOP / WI",
+    modeBilingualLabel: "🔄 Bilingual Parallel",
+    modeTroubleLabel: "🛠️ FA Troubleshooting",
+    sampleZhSopBtn: "✨ Load Sample Chinese SOP",
+    scanChineseImgBtn: "📸 Scan Chinese Photo",
+    clearInputBtn: "Clear",
+    transInputPlaceholder:
+      "Paste Chinese SOP text, WeChat/Lark engineering notes, or capture a photo of a Chinese machine screen / fixture manual...",
+    translateActionBtn: "Translate & Standardize Document",
+    translatingActionBtn: "Translating TE terms & standardizing SOP...",
+    transResultHeader: "Standardized Technical Document",
+    glossaryHeader: "📚 Extracted TE Technical Glossary (Chinese • Pinyin • VI • EN)",
+    saveTransToVaultBtn: "💾 Save Standardized SOP to RAG Vault",
+    vaultTranslateShortcut:
+      "🌐 Have a Chinese SOP / Manual? Tap to Translate & Standardize for TE →",
     // Vault Tab
     vaultUploadTitle: "📂 Upload SOP / Technical Docs to AI Vault",
     vaultUploadDesc: "Supports .pdf, .docx, .txt, .csv, .log & document photos",
@@ -610,6 +658,30 @@ export const UI_TEXT = {
     voiceListeningShort: "正在聆听...",
     savingNoteBtn: "正在生成向量并存入 MongoDB...",
     saveNoteBtn: "保存经验并训练 AI 向量库",
+    // Sub-tabs in Quick Note & Translator UI
+    subQuickNote: "📝 快速异常记录",
+    subTranslateSop: "🌐 中越工程文档翻译与标准化",
+    translatorBannerTitle: "🌐 AI 电子制造 / TE 工程文档翻译与 SOP 标准化 (中 ↔ 越 ↔ 英)",
+    translatorBannerDesc:
+      "内置工厂测试工程专业词库（治具=Jig/Fixture、探针=Pogo Pin、误测=NTF、金样=Golden Sample），一键转化为标准 SOP 作业指导书。",
+    dirZhToVi: "🇨🇳 中文 ➔ 🇻🇳 越南语 (TE 标准)",
+    dirViToZh: "🇻🇳 越南语 ➔ 🇨🇳 中文 (总部汇报)",
+    dirAutoToEn: "🌐 自动识别 ➔ 🇺🇸 英语 (客户审核)",
+    modeSopLabel: "📋 标准化 SOP / WI",
+    modeBilingualLabel: "🔄 中越双语对照",
+    modeTroubleLabel: "🛠️ 异常代码与 FA 对策表",
+    sampleZhSopBtn: "✨ 载入中文产线 SOP 示例",
+    scanChineseImgBtn: "📸 拍照识别中文文档",
+    clearInputBtn: "清空",
+    transInputPlaceholder:
+      "粘贴中文 SOP 文档、微信/飞书工程群通知（如：FCT02站位治具顶针脏污导致3V3误测...）或拍照上传机台报错画面...",
+    translateActionBtn: "立即执行专业翻译与 SOP 标准化",
+    translatingActionBtn: "正在解析工程术语并生成标准 SOP...",
+    transResultHeader: "已标准化工程技术文档",
+    glossaryHeader: "📚 文档提取 TE 专业术语对照表 (中文 • 拼音 • 越文 • 英文)",
+    saveTransToVaultBtn: "💾 一键存入 RAG 向量知识库",
+    vaultTranslateShortcut:
+      "🌐 有中文 SOP 或工程通告？点击进行中越 TE 专业翻译与标准化 →",
     // Vault Tab
     vaultUploadTitle: "📂 上传 SOP 文档 / 资料至 AI 知识库",
     vaultUploadDesc: "支持 .pdf, .docx, .txt, .csv, .log 及工程资料图片",

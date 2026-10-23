@@ -301,6 +301,36 @@ export default function TEBrainApp() {
   const [settingsSubTab, setSettingsSubTab] = useState<
     "models" | "tokens" | "database"
   >("tokens");
+  const [noteSubTab, setNoteSubTab] = useState<"note" | "translate">("note");
+
+  // AI Chinese-Vietnamese Technical Document Translator & SOP Standardizer state
+  const [transInput, setTransInput] = useState<string>("");
+  const [transDirection, setTransDirection] = useState<
+    "zh-vi" | "vi-zh" | "auto-en"
+  >("zh-vi");
+  const [transMode, setTransMode] = useState<
+    "sop" | "bilingual" | "troubleshooting"
+  >("sop");
+  const [transImage, setTransImage] = useState<{
+    mimeType: string;
+    data: string;
+  } | null>(null);
+  const [transImagePreview, setTransImagePreview] = useState<string | null>(
+    null
+  );
+  const [translatingSop, setTranslatingSop] = useState<boolean>(false);
+  const [savingTransToVault, setSavingTransToVault] = useState<boolean>(false);
+  const [transResult, setTransResult] = useState<{
+    translatedContent: string;
+    suggestedTitle: string;
+    suggestedCategory: string;
+    suggestedStation: string;
+    suggestedErrorCode: string;
+    suggestedTags: string;
+    glossary: Array<{ zh: string; pinyin: string; vi: string; en: string }>;
+    modelUsed: string;
+  } | null>(null);
+  const transImageInputRef = useRef<HTMLInputElement>(null);
 
   // Session History & Incident Report state
   const [chatSessions, setChatSessions] = useState<ChatSessionItem[]>([]);
@@ -1852,6 +1882,171 @@ export default function TEBrainApp() {
     startGeminiAudioFallback(target);
   };
 
+  const handleLoadSampleChineseSop = () => {
+    setTransDirection("zh-vi");
+    setTransInput(
+      `【TE工程技术规范 - 产线SOP通知】\n工站：FCT-02 & RF屏蔽箱测试站\n异常代码：ERR-FCT-104 (3V3电源短路误测) / E-901 (RF TX功率偏低)\n1. 不良现象：夜班产线FCT-02工站直通率(FPY)掉至86%，大量机台报ERR-FCT-104假不良(Retest OK)，同时RF屏蔽箱报E-901插损超标。\n2. 根本原因：测试治具(Fixture)顶针/探针(Pogo Pin)连续按压超过50,000次后残留助焊剂(Flux)导致接触阻抗变大；RF测试射频线接头松动且未按时做金样(Golden Sample)首件点检。\n3. 改善与标准作业步骤(SOP)：\n- 第一步：每班开线前必须使用PASS金样与FAIL坏机各跑3次进行首件点检(FAI)，确认上位机软件版本为V2.4并正常过站上传SFC/MES。\n- 第二步：使用无尘布蘸取IPA异丙醇清洁针床探针头部，用万用表测量3V3探针阻抗需小于0.15Ω；若顶针弹簧卡死或磨损必须立即更换。\n- 第三步：检查气缸下压气压保持在0.45~0.55MPa，锁紧RF屏蔽箱SMA衰减器接头，重新校准线损(Path Loss < 1.8dB)。`
+    );
+    showToast(
+      appLang === "zh"
+        ? "已载入中文产线 SOP 示例！"
+        : appLang === "en"
+          ? "Loaded sample Chinese factory SOP!"
+          : "✨ Đã nạp mẫu thông báo SOP Tiếng Trung thực tế tại xưởng!"
+    );
+  };
+
+  const handleTransImageSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImageFile(file);
+      setTransImage({
+        mimeType: compressed.mimeType,
+        data: compressed.data,
+      });
+      setTransImagePreview(compressed.preview);
+      showToast(
+        appLang === "zh"
+          ? "📸 已附上中文文档图片，请点击翻译按钮"
+          : appLang === "en"
+            ? "📸 Chinese document photo attached!"
+            : "📸 Đã đính kèm ảnh tài liệu tiếng Trung! Bấm nút Dịch bên dưới."
+      );
+    } catch {
+      showToast("Không thể đọc file ảnh!", "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleTranslateSop = async () => {
+    if (!transInput.trim() && !transImage) {
+      showToast(
+        appLang === "zh"
+          ? "请输入需要翻译的文档内容或上传图片"
+          : appLang === "en"
+            ? "Please enter text or attach a photo to translate"
+            : "Vui lòng dán văn bản tiếng Trung/Việt hoặc chụp ảnh tài liệu!",
+        "error"
+      );
+      return;
+    }
+
+    setTranslatingSop(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const res = await fetch("/api/translate-sop", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          text: transInput,
+          imageInline: transImage || undefined,
+          direction: transDirection,
+          mode: transMode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Lỗi dịch thuật tài liệu");
+      }
+
+      setTransResult({
+        translatedContent: data.translatedContent,
+        suggestedTitle: data.suggestedTitle,
+        suggestedCategory: data.suggestedCategory,
+        suggestedStation: data.suggestedStation,
+        suggestedErrorCode: data.suggestedErrorCode,
+        suggestedTags: data.suggestedTags,
+        glossary: data.glossary || [],
+        modelUsed: data.modelUsed || "gemini-3.5-flash-lite",
+      });
+      showToast(
+        appLang === "zh"
+          ? "✅ 工程文档翻译与 SOP 标准化完成！"
+          : appLang === "en"
+            ? "✅ Technical document translated & standardized!"
+            : "✅ Đã dịch chuẩn thuật ngữ TE & chuẩn hóa SOP thành công!"
+      );
+      fetchSystemStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi kết nối AI";
+      showToast(msg, "error");
+    } finally {
+      setTranslatingSop(false);
+    }
+  };
+
+  const handleSaveTranslatedSopToVault = async () => {
+    if (!transResult) return;
+    setSavingTransToVault(true);
+    try {
+      const savedKey = localStorage.getItem("te_brain_gemini_key") || "";
+      const glossaryAppendix =
+        transResult.glossary.length > 0
+          ? `\n\n### 📚 Bảng Thuật Ngữ Kỹ Thuật TE (Trung - Pinyin - Việt - Anh)\n` +
+            transResult.glossary
+              .map(
+                (g) =>
+                  `- **${g.zh}** (*${g.pinyin}*): ${g.vi} (${g.en})`
+              )
+              .join("\n")
+          : "";
+
+      const fullContent = `${transResult.translatedContent}${glossaryAppendix}${
+        transInput.trim()
+          ? `\n\n---\n**[Văn bản gốc / Original Source]:**\n${transInput.trim()}`
+          : ""
+      }`;
+
+      const res = await fetch("/api/knowledge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(savedKey ? { "x-gemini-key": savedKey } : {}),
+        },
+        body: JSON.stringify({
+          title: transResult.suggestedTitle,
+          type: "document",
+          category: TE_CATEGORIES.includes(transResult.suggestedCategory)
+            ? transResult.suggestedCategory
+            : "SOP / Manual",
+          errorCode: transResult.suggestedErrorCode,
+          station: transResult.suggestedStation,
+          content: fullContent,
+          tags: transResult.suggestedTags
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Không thể lưu vào Kho Tri Thức");
+      }
+
+      showToast(
+        appLang === "zh"
+          ? "💾 已将该标准化 SOP 存入 RAG 向量知识库！"
+          : appLang === "en"
+            ? "💾 Saved standardized SOP to RAG Knowledge Vault!"
+            : "💾 Đã lưu bản SOP chuẩn hóa vào Kho Tri Thức RAG thành công!"
+      );
+      fetchKnowledge();
+      fetchSystemStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Lỗi lưu tài liệu";
+      showToast(msg, "error");
+    } finally {
+      setSavingTransToVault(false);
+    }
+  };
+
   if (!authChecked) {
     return (
       <div className="h-dvh w-full bg-[#070b12] text-slate-100 flex items-center justify-center">
@@ -3230,247 +3425,563 @@ export default function TEBrainApp() {
               </div>
             )}
 
-            {/* ================= TAB 3: QUICK TROUBLESHOOTING NOTE ================= */}
+            {/* ================= TAB 3: QUICK TROUBLESHOOTING NOTE + AI SOP TRANSLATOR ================= */}
             {activeTab === "quick-note" && (
               <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
-                {/* Vision Auto-Fill Button Card */}
-                <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-bold text-xs sm:text-sm text-white">
-                        {t.visionTitle}
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        {t.visionDesc}
-                      </p>
-                    </div>
-                    <input
-                      ref={visionInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleVisionAutoFill}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      disabled={visionScanning}
-                      onClick={() => visionInputRef.current?.click()}
-                      className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
-                    >
-                      <Camera className="w-4 h-4 text-cyan-300" />
-                      <span>
-                        {visionScanning ? t.visionScanningBtn : t.visionScanBtn}
-                      </span>
-                    </button>
-                  </div>
-
-                  {visionPreview && (
-                    <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-2">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={visionPreview}
-                          alt="Scanned"
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
-                        <span className="text-xs text-emerald-400 font-medium">
-                          {t.visionAutoFilled}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setVisionPreview(null)}
-                        className="p-1 text-slate-400 hover:text-rose-400"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
+                {/* 2 Sub-tabs Switcher: Quick Note vs AI Chinese-Vietnamese SOP Translator */}
+                <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setNoteSubTab("note")}
+                    className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      noteSubTab === "note"
+                        ? "bg-cyan-500 text-slate-950 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <span>{t.subQuickNote}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNoteSubTab("translate")}
+                    className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      noteSubTab === "translate"
+                        ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <span>{t.subTranslateSop}</span>
+                  </button>
                 </div>
 
-                <form onSubmit={handleSaveQuickNote} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.noteTitleLabel}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={noteTitle}
-                      onChange={(e) => setNoteTitle(e.target.value)}
-                      placeholder={t.noteTitlePlaceholder}
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2.5 text-sm text-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.noteCategoryLabel}
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {TE_CATEGORIES.map((cat) => (
+                {noteSubTab === "note" ? (
+                  <>
+                    {/* Vision Auto-Fill Button Card */}
+                    <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <h3 className="font-bold text-xs sm:text-sm text-white">
+                            {t.visionTitle}
+                          </h3>
+                          <p className="text-[11px] text-slate-400">
+                            {t.visionDesc}
+                          </p>
+                        </div>
+                        <input
+                          ref={visionInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleVisionAutoFill}
+                          className="hidden"
+                        />
                         <button
                           type="button"
-                          key={cat}
-                          onClick={() => setNoteCategory(cat)}
-                          className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${noteCategory === cat
-                            ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                            : "bg-slate-900 border-slate-800 text-slate-400"
-                            }`}
+                          disabled={visionScanning}
+                          onClick={() => visionInputRef.current?.click()}
+                          className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
                         >
-                          {cat === "Khác" ? t.otherCategory : cat}
+                          <Camera className="w-4 h-4 text-cyan-300" />
+                          <span>
+                            {visionScanning
+                              ? t.visionScanningBtn
+                              : t.visionScanBtn}
+                          </span>
+                        </button>
+                      </div>
+
+                      {visionPreview && (
+                        <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-2">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={visionPreview}
+                              alt="Scanned"
+                              className="w-10 h-10 rounded-lg object-cover"
+                            />
+                            <span className="text-xs text-emerald-400 font-medium">
+                              {t.visionAutoFilled}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setVisionPreview(null)}
+                            className="p-1 text-slate-400 hover:text-rose-400"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleSaveQuickNote} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t.noteTitleLabel}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={noteTitle}
+                          onChange={(e) => setNoteTitle(e.target.value)}
+                          placeholder={t.noteTitlePlaceholder}
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2.5 text-sm text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t.noteCategoryLabel}
+                        </label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {TE_CATEGORIES.map((cat) => (
+                            <button
+                              type="button"
+                              key={cat}
+                              onClick={() => setNoteCategory(cat)}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
+                                noteCategory === cat
+                                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                                  : "bg-slate-900 border-slate-800 text-slate-400"
+                              }`}
+                            >
+                              {cat === "Khác" ? t.otherCategory : cat}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            {t.noteErrorCodeLabel}
+                          </label>
+                          <input
+                            type="text"
+                            value={noteErrorCode}
+                            onChange={(e) => setNoteErrorCode(e.target.value)}
+                            placeholder={t.noteErrorCodePlaceholder}
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm font-mono text-amber-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            {t.noteStationLabel}
+                          </label>
+                          <input
+                            type="text"
+                            value={noteStation}
+                            onChange={(e) => setNoteStation(e.target.value)}
+                            placeholder={t.noteStationPlaceholder}
+                            className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm text-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-slate-300">
+                            {t.noteSymptomLabel}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => toggleVoiceInput("symptom")}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                              isListening && voiceTarget === "symptom"
+                                ? "bg-rose-600 border-rose-400 text-white"
+                                : "bg-slate-800 border-slate-700 text-cyan-300"
+                            }`}
+                          >
+                            <Mic className="w-3 h-3" />
+                            <span>
+                              {isListening && voiceTarget === "symptom"
+                                ? t.voiceListeningShort
+                                : t.voiceDictateBtn}
+                            </span>
+                          </button>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={noteSymptom}
+                          onChange={(e) => setNoteSymptom(e.target.value)}
+                          placeholder={t.noteSymptomPlaceholder}
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-slate-300">
+                            {t.noteRootCauseLabel}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => toggleVoiceInput("rootCause")}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                              isListening && voiceTarget === "rootCause"
+                                ? "bg-rose-600 border-rose-400 text-white"
+                                : "bg-slate-800 border-slate-700 text-cyan-300"
+                            }`}
+                          >
+                            <Mic className="w-3 h-3" />
+                            <span>
+                              {isListening && voiceTarget === "rootCause"
+                                ? t.voiceListeningShort
+                                : t.voiceDictateBtn}
+                            </span>
+                          </button>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={noteRootCause}
+                          onChange={(e) => setNoteRootCause(e.target.value)}
+                          placeholder={t.noteRootCausePlaceholder}
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-emerald-400">
+                            {t.noteSolutionLabel}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => toggleVoiceInput("solution")}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
+                              isListening && voiceTarget === "solution"
+                                ? "bg-rose-600 border-rose-400 text-white"
+                                : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                            }`}
+                          >
+                            <Mic className="w-3 h-3" />
+                            <span>
+                              {isListening && voiceTarget === "solution"
+                                ? t.voiceListeningShort
+                                : t.voiceDictateBtn}
+                            </span>
+                          </button>
+                        </div>
+                        <textarea
+                          rows={3}
+                          required
+                          value={noteSolution}
+                          onChange={(e) => setNoteSolution(e.target.value)}
+                          placeholder={t.noteSolutionPlaceholder}
+                          className="w-full rounded-xl bg-slate-900 border border-emerald-500/40 focus:border-emerald-400 focus:outline-none px-3.5 py-2 text-sm text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          {t.noteTagsLabel}
+                        </label>
+                        <input
+                          type="text"
+                          value={noteTags}
+                          onChange={(e) => setNoteTags(e.target.value)}
+                          placeholder={t.noteTagsPlaceholder}
+                          className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={savingNote}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        <span>
+                          {savingNote ? t.savingNoteBtn : t.saveNoteBtn}
+                        </span>
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  /* ================= SUB-TAB 2: AI CHINESE-VIETNAMESE SOP TRANSLATOR & STANDARDIZER ================= */
+                  <div className="space-y-3.5">
+                    {/* Banner */}
+                    <div className="bg-gradient-to-r from-slate-900 via-cyan-950/30 to-slate-900 border border-cyan-500/35 rounded-2xl p-3.5 space-y-1.5">
+                      <h3 className="font-bold text-xs sm:text-sm text-cyan-300">
+                        {t.translatorBannerTitle}
+                      </h3>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        {t.translatorBannerDesc}
+                      </p>
+                    </div>
+
+                    {/* Step 1: Direction Selector */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(
+                        [
+                          { id: "zh-vi", label: t.dirZhToVi },
+                          { id: "vi-zh", label: t.dirViToZh },
+                          { id: "auto-en", label: t.dirAutoToEn },
+                        ] as const
+                      ).map((dir) => (
+                        <button
+                          key={dir.id}
+                          type="button"
+                          onClick={() => setTransDirection(dir.id)}
+                          className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition text-center leading-tight ${
+                            transDirection === dir.id
+                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-sm"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          {dir.label}
                         </button>
                       ))}
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        {t.noteErrorCodeLabel}
-                      </label>
-                      <input
-                        type="text"
-                        value={noteErrorCode}
-                        onChange={(e) => setNoteErrorCode(e.target.value)}
-                        placeholder={t.noteErrorCodePlaceholder}
-                        className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm font-mono text-amber-300"
+                    {/* Step 2: Output Standardization Mode */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(
+                        [
+                          { id: "sop", label: t.modeSopLabel },
+                          { id: "bilingual", label: t.modeBilingualLabel },
+                          { id: "troubleshooting", label: t.modeTroubleLabel },
+                        ] as const
+                      ).map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setTransMode(m.id)}
+                          className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition text-center leading-tight ${
+                            transMode === m.id
+                              ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-sm"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Step 3: Input Toolbar (Sample SOP + Photo OCR + Clear) */}
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleLoadSampleChineseSop}
+                            className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[11px] font-semibold transition"
+                          >
+                            {t.sampleZhSopBtn}
+                          </button>
+
+                          <input
+                            ref={transImageInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleTransImageSelect}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => transImageInputRef.current?.click()}
+                            className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[11px] font-semibold flex items-center gap-1 transition"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>{t.scanChineseImgBtn}</span>
+                          </button>
+                        </div>
+
+                        {(transInput || transImage) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransInput("");
+                              setTransImage(null);
+                              setTransImagePreview(null);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400 text-[11px]"
+                          >
+                            {t.clearInputBtn}
+                          </button>
+                        )}
+                      </div>
+
+                      {transImagePreview && (
+                        <div className="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-2">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={transImagePreview}
+                              alt="Chinese SOP"
+                              className="w-12 h-12 rounded-lg object-cover border border-cyan-500/40"
+                            />
+                            <span className="text-xs text-cyan-300 font-medium">
+                              📸 Ảnh SOP / Màn hình máy đính kèm
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransImage(null);
+                              setTransImagePreview(null);
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-400"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      <textarea
+                        rows={5}
+                        value={transInput}
+                        onChange={(e) => setTransInput(e.target.value)}
+                        placeholder={t.transInputPlaceholder}
+                        className="w-full rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 focus:outline-none p-3 text-xs sm:text-sm text-white leading-relaxed"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        {t.noteStationLabel}
-                      </label>
-                      <input
-                        type="text"
-                        value={noteStation}
-                        onChange={(e) => setNoteStation(e.target.value)}
-                        placeholder={t.noteStationPlaceholder}
-                        className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm text-white"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300">
-                        {t.noteSymptomLabel}
-                      </label>
                       <button
                         type="button"
-                        onClick={() => toggleVoiceInput("symptom")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "symptom"
-                          ? "bg-rose-600 border-rose-400 text-white"
-                          : "bg-slate-800 border-slate-700 text-cyan-300"
-                          }`}
+                        disabled={translatingSop}
+                        onClick={handleTranslateSop}
+                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition"
                       >
-                        <Mic className="w-3 h-3" />
-                        <span>
-                          {isListening && voiceTarget === "symptom"
-                            ? t.voiceListeningShort
-                            : t.voiceDictateBtn}
-                        </span>
+                        {translatingSop ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>{t.translatingActionBtn}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            <span>{t.translateActionBtn}</span>
+                          </>
+                        )}
                       </button>
                     </div>
-                    <textarea
-                      rows={2}
-                      value={noteSymptom}
-                      onChange={(e) => setNoteSymptom(e.target.value)}
-                      placeholder={t.noteSymptomPlaceholder}
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
-                    />
-                  </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300">
-                        {t.noteRootCauseLabel}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleVoiceInput("rootCause")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "rootCause"
-                          ? "bg-rose-600 border-rose-400 text-white"
-                          : "bg-slate-800 border-slate-700 text-cyan-300"
-                          }`}
-                      >
-                        <Mic className="w-3 h-3" />
-                        <span>
-                          {isListening && voiceTarget === "rootCause"
-                            ? t.voiceListeningShort
-                            : t.voiceDictateBtn}
-                        </span>
-                      </button>
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={noteRootCause}
-                      onChange={(e) => setNoteRootCause(e.target.value)}
-                      placeholder={t.noteRootCausePlaceholder}
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
-                    />
-                  </div>
+                    {/* Step 4: Standardized Result + TE Glossary + 1-Click Save to RAG */}
+                    {transResult && (
+                      <div className="space-y-3">
+                        {/* Standardized Document Card */}
+                        <div className="bg-slate-900 border border-cyan-500/40 rounded-2xl p-3.5 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+                                {t.transResultHeader}
+                              </span>
+                              <h4 className="font-bold text-xs sm:text-sm text-white">
+                                {transResult.suggestedTitle}
+                              </h4>
+                            </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-emerald-400">
-                        {t.noteSolutionLabel}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleVoiceInput("solution")}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "solution"
-                          ? "bg-rose-600 border-rose-400 text-white"
-                          : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                          }`}
-                      >
-                        <Mic className="w-3 h-3" />
-                        <span>
-                          {isListening && voiceTarget === "solution"
-                            ? t.voiceListeningShort
-                            : t.voiceDictateBtn}
-                        </span>
-                      </button>
-                    </div>
-                    <textarea
-                      rows={3}
-                      required
-                      value={noteSolution}
-                      onChange={(e) => setNoteSolution(e.target.value)}
-                      placeholder={t.noteSolutionPlaceholder}
-                      className="w-full rounded-xl bg-slate-900 border border-emerald-500/40 focus:border-emerald-400 focus:outline-none px-3.5 py-2 text-sm text-white"
-                    />
-                  </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  speakMessage(
+                                    transResult.translatedContent,
+                                    888
+                                  )
+                                }
+                                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold flex items-center gap-1"
+                              >
+                                <Volume2 className="w-3.5 h-3.5" />
+                                <span>
+                                  {speakingIdx === 888
+                                    ? t.stopListening
+                                    : t.listenGuide}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    transResult.translatedContent
+                                  );
+                                  showToast("📋 Copied!");
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copy</span>
+                              </button>
+                            </div>
+                          </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      {t.noteTagsLabel}
-                    </label>
-                    <input
-                      type="text"
-                      value={noteTags}
-                      onChange={(e) => setNoteTags(e.target.value)}
-                      placeholder={t.noteTagsPlaceholder}
-                      className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
-                    />
-                  </div>
+                          <div className="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3">
+                            <FormattedMessage
+                              content={transResult.translatedContent}
+                              isUser={false}
+                            />
+                          </div>
 
-                  <button
-                    type="submit"
-                    disabled={savingNote}
-                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    <span>
-                      {savingNote ? t.savingNoteBtn : t.saveNoteBtn}
-                    </span>
-                  </button>
-                </form>
+                          {/* 1-Click Save to RAG Vault */}
+                          <button
+                            type="button"
+                            disabled={savingTransToVault}
+                            onClick={handleSaveTranslatedSopToVault}
+                            className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition"
+                          >
+                            {savingTransToVault ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                <span>{t.savingToVaultBtn}</span>
+                              </>
+                            ) : (
+                              <span>{t.saveTransToVaultBtn}</span>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Extracted TE Glossary Table with Pinyin */}
+                        {transResult.glossary.length > 0 && (
+                          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+                            <h4 className="font-bold text-xs text-amber-300">
+                              {t.glossaryHeader}
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {transResult.glossary.map((g, idx) => (
+                                <div
+                                  key={idx}
+                                  className="bg-slate-950 border border-slate-800/90 rounded-xl p-2.5 flex items-start justify-between gap-2"
+                                >
+                                  <div className="space-y-0.5 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-bold text-sm text-amber-300">
+                                        {g.zh}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/50 px-1.5 py-0.5 rounded">
+                                        {g.pinyin}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs font-semibold text-white">
+                                      🇻🇳 {g.vi}
+                                    </p>
+                                    <p className="text-[11px] text-slate-400">
+                                      🇺🇸 {g.en}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {/* ================= TAB 4: KNOWLEDGE VAULT ================= */}
             {activeTab === "vault" && (
               <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
+                {/* Quick Shortcut to Chinese-Vietnamese SOP Translator */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("quick-note");
+                    setNoteSubTab("translate");
+                  }}
+                  className="w-full py-2.5 px-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/80 via-blue-950/70 to-slate-900 border border-cyan-500/40 hover:border-cyan-400 text-cyan-200 text-xs font-semibold flex items-center justify-between gap-2 transition"
+                >
+                  <span className="text-left">{t.vaultTranslateShortcut}</span>
+                </button>
+
                 {/* Compact Upload Box */}
                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
