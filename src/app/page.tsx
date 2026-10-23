@@ -1759,11 +1759,11 @@ export default function TEBrainApp() {
             } else {
               showToast(
                 data.error ||
-                  (appLang === "zh"
-                    ? "未听清语音，请重试"
-                    : appLang === "en"
-                      ? "Could not recognize speech, please try again"
-                      : "Không nghe rõ, vui lòng nói lại."),
+                (appLang === "zh"
+                  ? "未听清语音，请重试"
+                  : appLang === "en"
+                    ? "Could not recognize speech, please try again"
+                    : "Không nghe rõ, vui lòng nói lại."),
                 "error"
               );
             }
@@ -1990,19 +1990,18 @@ export default function TEBrainApp() {
       const glossaryAppendix =
         transResult.glossary.length > 0
           ? `\n\n### 📚 Bảng Thuật Ngữ Kỹ Thuật TE (Trung - Pinyin - Việt - Anh)\n` +
-            transResult.glossary
-              .map(
-                (g) =>
-                  `- **${g.zh}** (*${g.pinyin}*): ${g.vi} (${g.en})`
-              )
-              .join("\n")
+          transResult.glossary
+            .map(
+              (g) =>
+                `- **${g.zh}** (*${g.pinyin}*): ${g.vi} (${g.en})`
+            )
+            .join("\n")
           : "";
 
-      const fullContent = `${transResult.translatedContent}${glossaryAppendix}${
-        transInput.trim()
-          ? `\n\n---\n**[Văn bản gốc / Original Source]:**\n${transInput.trim()}`
-          : ""
-      }`;
+      const fullContent = `${transResult.translatedContent}${glossaryAppendix}${transInput.trim()
+        ? `\n\n---\n**[Văn bản gốc / Original Source]:**\n${transInput.trim()}`
+        : ""
+        }`;
 
       const res = await fetch("/api/knowledge", {
         method: "POST",
@@ -2075,11 +2074,10 @@ export default function TEBrainApp() {
                 key={l.code}
                 type="button"
                 onClick={() => handleSwitchLang(l.code)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition flex items-center gap-1 ${
-                  appLang === l.code
-                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-                }`}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition flex items-center gap-1 ${appLang === l.code
+                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                  }`}
               >
                 <span>{l.flag}</span>
                 <span>{l.short}</span>
@@ -2262,9 +2260,8 @@ export default function TEBrainApp() {
                 <span>{currentLangOption.flag}</span>
                 <span>{currentLangOption.short}</span>
                 <ChevronRight
-                  className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${
-                    langDropdownOpen ? "-rotate-90" : "rotate-90"
-                  }`}
+                  className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${langDropdownOpen ? "-rotate-90" : "rotate-90"
+                    }`}
                 />
               </button>
 
@@ -2285,11 +2282,10 @@ export default function TEBrainApp() {
                             handleSwitchLang(l.code);
                             setLangDropdownOpen(false);
                           }}
-                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition ${
-                            active
-                              ? "bg-cyan-500/20 text-cyan-300 font-bold"
-                              : "text-slate-200 hover:bg-slate-800"
-                          }`}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition ${active
+                            ? "bg-cyan-500/20 text-cyan-300 font-bold"
+                            : "text-slate-200 hover:bg-slate-800"
+                            }`}
                         >
                           <span className="flex items-center gap-2">
                             <span>{l.flag}</span>
@@ -3433,22 +3429,20 @@ export default function TEBrainApp() {
                   <button
                     type="button"
                     onClick={() => setNoteSubTab("note")}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
-                      noteSubTab === "note"
-                        ? "bg-cyan-500 text-slate-950 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${noteSubTab === "note"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                      }`}
                   >
                     <span>{t.subQuickNote}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setNoteSubTab("translate")}
-                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
-                      noteSubTab === "translate"
-                        ? "bg-cyan-500 text-slate-950 shadow-sm"
-                        : "text-slate-400 hover:text-slate-200"
-                    }`}
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${noteSubTab === "translate"
+                      ? "bg-cyan-500 text-slate-950 shadow-sm"
+                      : "text-slate-400 hover:text-slate-200"
+                      }`}
                   >
                     <span>{t.subTranslateSop}</span>
                   </button>
@@ -3537,11 +3531,10 @@ export default function TEBrainApp() {
                               type="button"
                               key={cat}
                               onClick={() => setNoteCategory(cat)}
-                              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
-                                noteCategory === cat
-                                  ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
-                                  : "bg-slate-900 border-slate-800 text-slate-400"
-                              }`}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${noteCategory === cat
+                                ? "bg-cyan-500/20 border-cyan-400 text-cyan-300"
+                                : "bg-slate-900 border-slate-800 text-slate-400"
+                                }`}
                             >
                               {cat === "Khác" ? t.otherCategory : cat}
                             </button>
@@ -3584,11 +3577,10 @@ export default function TEBrainApp() {
                           <button
                             type="button"
                             onClick={() => toggleVoiceInput("symptom")}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                              isListening && voiceTarget === "symptom"
-                                ? "bg-rose-600 border-rose-400 text-white"
-                                : "bg-slate-800 border-slate-700 text-cyan-300"
-                            }`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "symptom"
+                              ? "bg-rose-600 border-rose-400 text-white"
+                              : "bg-slate-800 border-slate-700 text-cyan-300"
+                              }`}
                           >
                             <Mic className="w-3 h-3" />
                             <span>
@@ -3615,11 +3607,10 @@ export default function TEBrainApp() {
                           <button
                             type="button"
                             onClick={() => toggleVoiceInput("rootCause")}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                              isListening && voiceTarget === "rootCause"
-                                ? "bg-rose-600 border-rose-400 text-white"
-                                : "bg-slate-800 border-slate-700 text-cyan-300"
-                            }`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "rootCause"
+                              ? "bg-rose-600 border-rose-400 text-white"
+                              : "bg-slate-800 border-slate-700 text-cyan-300"
+                              }`}
                           >
                             <Mic className="w-3 h-3" />
                             <span>
@@ -3646,11 +3637,10 @@ export default function TEBrainApp() {
                           <button
                             type="button"
                             onClick={() => toggleVoiceInput("solution")}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${
-                              isListening && voiceTarget === "solution"
-                                ? "bg-rose-600 border-rose-400 text-white"
-                                : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                            }`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold border ${isListening && voiceTarget === "solution"
+                              ? "bg-rose-600 border-rose-400 text-white"
+                              : "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                              }`}
                           >
                             <Mic className="w-3 h-3" />
                             <span>
@@ -3713,11 +3703,10 @@ export default function TEBrainApp() {
                             key={dir.id}
                             type="button"
                             onClick={() => setTransDirection(dir.id)}
-                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${
-                              transDirection === dir.id
-                                ? "bg-cyan-500/20 border border-cyan-400/60 text-cyan-300"
-                                : "text-slate-400 hover:text-slate-200"
-                            }`}
+                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${transDirection === dir.id
+                              ? "bg-cyan-500/20 border border-cyan-400/60 text-cyan-300"
+                              : "text-slate-400 hover:text-slate-200"
+                              }`}
                           >
                             {dir.label}
                           </button>
@@ -3740,11 +3729,10 @@ export default function TEBrainApp() {
                             key={m.id}
                             type="button"
                             onClick={() => setTransMode(m.id)}
-                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${
-                              transMode === m.id
-                                ? "bg-emerald-500/20 border border-emerald-400/60 text-emerald-300"
-                                : "text-slate-400 hover:text-slate-200"
-                            }`}
+                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${transMode === m.id
+                              ? "bg-emerald-500/20 border border-emerald-400/60 text-emerald-300"
+                              : "text-slate-400 hover:text-slate-200"
+                              }`}
                           >
                             {m.label}
                           </button>
@@ -4734,16 +4722,16 @@ export default function TEBrainApp() {
                       ? `请详细说明如何检查与处理此异常：“${selectedItemModal.title}” ${selectedItemModal.errorCode
                         ? `(${selectedItemModal.errorCode})`
                         : ""
-                        }`
+                      }`
                       : appLang === "en"
                         ? `Provide detailed SOP troubleshooting steps for: "${selectedItemModal.title}" ${selectedItemModal.errorCode
                           ? `(${selectedItemModal.errorCode})`
                           : ""
-                          }`
+                        }`
                         : `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${selectedItemModal.errorCode
                           ? `(${selectedItemModal.errorCode})`
                           : ""
-                          }`;
+                        }`;
                   setSelectedItemModal(null);
                   setActiveTab("chat");
                   handleSendMessage(q);

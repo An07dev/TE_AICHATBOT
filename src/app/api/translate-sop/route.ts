@@ -42,6 +42,11 @@ Tuyệt đối KHÔNG dịch word-by-word kiểu Google Dịch. Bắt buộc dù
 
 function cleanHybridChineseVietnamese(text: string): string {
   return text
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "  ")
+    // Ensure markdown headings (###) always start on a new line
+    .replace(/([^\n])\s*(#{2,4}\s+)/g, "$1\n\n$2")
     .replace(/điểm\s*检/gi, "kiểm tra định kỳ (点检)")
     .replace(/ngắn\s*路/gi, "ngắn mạch (短路)")
     .replace(/hở\s*路/gi, "hở mạch (开路)")
