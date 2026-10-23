@@ -91,7 +91,9 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const validBuffers = chunkBuffers.filter((b): b is Buffer => b !== null && b.length > 0);
+    const validBuffers = chunkBuffers.filter(
+      (b): b is NonNullable<typeof b> => b !== null && b.length > 0
+    );
 
     if (validBuffers.length === 0) {
       return NextResponse.json(
