@@ -3427,13 +3427,13 @@ export default function TEBrainApp() {
 
             {/* ================= TAB 3: QUICK TROUBLESHOOTING NOTE + AI SOP TRANSLATOR ================= */}
             {activeTab === "quick-note" && (
-              <div className="px-3.5 py-3.5 space-y-3.5 pb-8">
-                {/* 2 Sub-tabs Switcher: Quick Note vs AI Chinese-Vietnamese SOP Translator */}
-                <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+              <div className="px-3.5 py-3 space-y-3 pb-8">
+                {/* Slim 2 Sub-tabs Switcher */}
+                <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-xl border border-slate-800">
                   <button
                     type="button"
                     onClick={() => setNoteSubTab("note")}
-                    className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
                       noteSubTab === "note"
                         ? "bg-cyan-500 text-slate-950 shadow-sm"
                         : "text-slate-400 hover:text-slate-200"
@@ -3444,9 +3444,9 @@ export default function TEBrainApp() {
                   <button
                     type="button"
                     onClick={() => setNoteSubTab("translate")}
-                    className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap ${
                       noteSubTab === "translate"
-                        ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm"
+                        ? "bg-cyan-500 text-slate-950 shadow-sm"
                         : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
@@ -3696,74 +3696,72 @@ export default function TEBrainApp() {
                     </form>
                   </>
                 ) : (
-                  /* ================= SUB-TAB 2: AI CHINESE-VIETNAMESE SOP TRANSLATOR & STANDARDIZER ================= */
-                  <div className="space-y-3.5">
-                    {/* Banner */}
-                    <div className="bg-gradient-to-r from-slate-900 via-cyan-950/30 to-slate-900 border border-cyan-500/35 rounded-2xl p-3.5 space-y-1.5">
-                      <h3 className="font-bold text-xs sm:text-sm text-cyan-300">
-                        {t.translatorBannerTitle}
-                      </h3>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        {t.translatorBannerDesc}
-                      </p>
-                    </div>
+                  /* ================= SUB-TAB 2: COMPACT AI CHINESE-VIETNAMESE SOP TRANSLATOR ================= */
+                  <div className="space-y-2.5">
+                    {/* Unified Control + Input Card */}
+                    <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-3 space-y-2.5">
+                      {/* Row 1: Compact Single-Line Direction Segmented Bar */}
+                      <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800/80">
+                        {(
+                          [
+                            { id: "zh-vi", label: t.dirZhToVi },
+                            { id: "vi-zh", label: t.dirViToZh },
+                            { id: "auto-en", label: t.dirAutoToEn },
+                          ] as const
+                        ).map((dir) => (
+                          <button
+                            key={dir.id}
+                            type="button"
+                            onClick={() => setTransDirection(dir.id)}
+                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${
+                              transDirection === dir.id
+                                ? "bg-cyan-500/20 border border-cyan-400/60 text-cyan-300"
+                                : "text-slate-400 hover:text-slate-200"
+                            }`}
+                          >
+                            {dir.label}
+                          </button>
+                        ))}
+                      </div>
 
-                    {/* Step 1: Direction Selector */}
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {(
-                        [
-                          { id: "zh-vi", label: t.dirZhToVi },
-                          { id: "vi-zh", label: t.dirViToZh },
-                          { id: "auto-en", label: t.dirAutoToEn },
-                        ] as const
-                      ).map((dir) => (
-                        <button
-                          key={dir.id}
-                          type="button"
-                          onClick={() => setTransDirection(dir.id)}
-                          className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition text-center leading-tight ${
-                            transDirection === dir.id
-                              ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-sm"
-                              : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-                          }`}
-                        >
-                          {dir.label}
-                        </button>
-                      ))}
-                    </div>
+                      {/* Row 2: Compact Single-Line Output Mode Segmented Bar */}
+                      <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800/80">
+                        {(
+                          [
+                            { id: "sop", label: t.modeSopLabel },
+                            { id: "bilingual", label: t.modeBilingualLabel },
+                            {
+                              id: "troubleshooting",
+                              label: t.modeTroubleLabel,
+                            },
+                          ] as const
+                        ).map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setTransMode(m.id)}
+                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${
+                              transMode === m.id
+                                ? "bg-emerald-500/20 border border-emerald-400/60 text-emerald-300"
+                                : "text-slate-400 hover:text-slate-200"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
 
-                    {/* Step 2: Output Standardization Mode */}
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {(
-                        [
-                          { id: "sop", label: t.modeSopLabel },
-                          { id: "bilingual", label: t.modeBilingualLabel },
-                          { id: "troubleshooting", label: t.modeTroubleLabel },
-                        ] as const
-                      ).map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setTransMode(m.id)}
-                          className={`py-2 px-2 rounded-xl text-[11px] font-semibold border transition text-center leading-tight ${
-                            transMode === m.id
-                              ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-sm"
-                              : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
+                      {/* Row 3: Slim Label + Mini Action Pills on 1 Line */}
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <span className="text-[11px] font-semibold text-slate-400 truncate">
+                          {t.transInputLabel}
+                        </span>
 
-                    {/* Step 3: Input Toolbar (Sample SOP + Photo OCR + Clear) */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
                             onClick={handleLoadSampleChineseSop}
-                            className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[11px] font-semibold transition"
+                            className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-[11px] font-medium whitespace-nowrap transition"
                           >
                             {t.sampleZhSopBtn}
                           </button>
@@ -3778,26 +3776,26 @@ export default function TEBrainApp() {
                           <button
                             type="button"
                             onClick={() => transImageInputRef.current?.click()}
-                            className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-[11px] font-semibold flex items-center gap-1 transition"
+                            className="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/35 text-cyan-300 text-[11px] font-medium flex items-center gap-1 whitespace-nowrap transition"
                           >
-                            <Camera className="w-3.5 h-3.5" />
+                            <Camera className="w-3 h-3 shrink-0" />
                             <span>{t.scanChineseImgBtn}</span>
                           </button>
-                        </div>
 
-                        {(transInput || transImage) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTransInput("");
-                              setTransImage(null);
-                              setTransImagePreview(null);
-                            }}
-                            className="px-2 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400 text-[11px]"
-                          >
-                            {t.clearInputBtn}
-                          </button>
-                        )}
+                          {(transInput || transImage) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTransInput("");
+                                setTransImage(null);
+                                setTransImagePreview(null);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-rose-400 text-[11px] whitespace-nowrap"
+                            >
+                              {t.clearInputBtn}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {transImagePreview && (
@@ -3806,10 +3804,10 @@ export default function TEBrainApp() {
                             <img
                               src={transImagePreview}
                               alt="Chinese SOP"
-                              className="w-12 h-12 rounded-lg object-cover border border-cyan-500/40"
+                              className="w-10 h-10 rounded-lg object-cover border border-cyan-500/40"
                             />
                             <span className="text-xs text-cyan-300 font-medium">
-                              📸 Ảnh SOP / Màn hình máy đính kèm
+                              📸 Đã đính kèm ảnh tài liệu
                             </span>
                           </div>
                           <button
@@ -3826,7 +3824,7 @@ export default function TEBrainApp() {
                       )}
 
                       <textarea
-                        rows={5}
+                        rows={4}
                         value={transInput}
                         onChange={(e) => setTransInput(e.target.value)}
                         placeholder={t.transInputPlaceholder}
@@ -3837,7 +3835,7 @@ export default function TEBrainApp() {
                         type="button"
                         disabled={translatingSop}
                         onClick={handleTranslateSop}
-                        className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-lg shadow-cyan-500/20 flex items-center justify-center gap-2 transition"
+                        className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm shadow-md shadow-cyan-500/15 flex items-center justify-center gap-1.5 transition"
                       >
                         {translatingSop ? (
                           <>
