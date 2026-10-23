@@ -275,7 +275,10 @@ function FormattedMessage({
 export default function TEBrainApp() {
   // Global UI & AI Language state (VI / EN / ZH)
   const [appLang, setAppLang] = useState<AppLang>("vi");
+  const [langDropdownOpen, setLangDropdownOpen] = useState<boolean>(false);
   const t = UI_TEXT[appLang];
+  const currentLangOption =
+    LANG_OPTIONS.find((l) => l.code === appLang) || LANG_OPTIONS[0];
 
   // Master PIN Auth Gate state
   const [authChecked, setAuthChecked] = useState<boolean>(false);
@@ -1941,24 +1944,59 @@ export default function TEBrainApp() {
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
-            {/* 3-Language Switcher (VI / EN / ZH) */}
-            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-700/80">
-              {LANG_OPTIONS.map((l) => (
-                <button
-                  key={l.code}
-                  type="button"
-                  onClick={() => handleSwitchLang(l.code)}
-                  title={l.name}
-                  className={`px-1.5 py-1 rounded-md text-[10px] font-bold transition flex items-center gap-0.5 ${
-                    appLang === l.code
-                      ? "bg-cyan-500 text-slate-950 shadow-xs"
-                      : "text-slate-400 hover:text-slate-200"
+            {/* Compact Language Dropdown (VI / EN / ZH) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setLangDropdownOpen((prev) => !prev)}
+                className="h-7.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-cyan-300 flex items-center gap-1.5 transition"
+                title={currentLangOption.name}
+              >
+                <span>{currentLangOption.flag}</span>
+                <span>{currentLangOption.short}</span>
+                <ChevronRight
+                  className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${
+                    langDropdownOpen ? "-rotate-90" : "rotate-90"
                   }`}
-                >
-                  <span>{l.flag}</span>
-                  <span>{l.short}</span>
-                </button>
-              ))}
+                />
+              </button>
+
+              {langDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setLangDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-1.5 w-36 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl py-1 z-50 overflow-hidden">
+                    {LANG_OPTIONS.map((l) => {
+                      const active = appLang === l.code;
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          onClick={() => {
+                            handleSwitchLang(l.code);
+                            setLangDropdownOpen(false);
+                          }}
+                          className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between transition ${
+                            active
+                              ? "bg-cyan-500/20 text-cyan-300 font-bold"
+                              : "text-slate-200 hover:bg-slate-800"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{l.flag}</span>
+                            <span>{l.name}</span>
+                          </span>
+                          {active && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
 
             <button
