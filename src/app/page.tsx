@@ -2513,7 +2513,7 @@ export default function TEBrainApp() {
                         {t.analyzingFileLabel}
                       </span>
                       <h2 className="font-mono font-bold text-xs sm:text-sm text-white truncate">
-                        {logResult ? logResult.fileName : "Chưa chọn file"}
+                        {logResult ? logResult.fileName : t.noFileSelected}
                       </h2>
                     </div>
 
@@ -2537,7 +2537,7 @@ export default function TEBrainApp() {
                       <button
                         type="button"
                         onClick={handleDownloadSampleCsv}
-                        title="Tải file CSV mẫu"
+                        title={t.sampleLogBtn}
                         className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
                       >
                         <Download className="w-4 h-4" />
@@ -2662,7 +2662,7 @@ export default function TEBrainApp() {
                                 </span>
                               </div>
                               <span className="font-mono text-xs font-bold text-rose-400 shrink-0">
-                                {p.count} lỗi ({p.percentOfFails}%)
+                                {p.count} {t.defectsCountUnit} ({p.percentOfFails}%)
                               </span>
                             </div>
 
@@ -2698,7 +2698,11 @@ export default function TEBrainApp() {
                                 onClick={() => {
                                   setActiveTab("chat");
                                   handleSendMessage(
-                                    `Trạm ${p.station} bị lỗi ${p.errorCode} tại bài đo ${p.testItem} (${p.count} lỗi, chiếm ${p.percentOfFails}%). Hướng dẫn nguyên nhân và cách xử lý SOP?`
+                                    appLang === "zh"
+                                      ? `工站 ${p.station} 在测试项 ${p.testItem} 出现错误 ${p.errorCode}（共 ${p.count} 次不良，占比 ${p.percentOfFails}%）。请提供根因分析与 SOP 维修对策？`
+                                      : appLang === "en"
+                                        ? `Station ${p.station} failed with ${p.errorCode} at test item ${p.testItem} (${p.count} fails, ${p.percentOfFails}%). What is the root cause and SOP troubleshooting guide?`
+                                        : `Trạm ${p.station} bị lỗi ${p.errorCode} tại bài đo ${p.testItem} (${p.count} lỗi, chiếm ${p.percentOfFails}%). Hướng dẫn nguyên nhân và cách xử lý SOP?`
                                   );
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 font-semibold text-xs shrink-0 transition"
@@ -2726,7 +2730,8 @@ export default function TEBrainApp() {
                                   {c.testItem}
                                 </span>
                                 <span className="text-[11px] text-slate-400">
-                                  Trạm: {c.station} ({c.sampleCount} mẫu đo)
+                                  {t.stationLabel} {c.station} ({c.sampleCount}{" "}
+                                  {t.samplesUnit})
                                 </span>
                               </div>
 
@@ -2740,9 +2745,9 @@ export default function TEBrainApp() {
                               >
                                 Cpk = {c.cpk}{" "}
                                 {c.status === "good"
-                                  ? "(ĐẠT)"
+                                  ? t.cpkGood
                                   : c.status === "warning"
-                                    ? "(CẢNH BÁO)"
+                                    ? t.cpkWarn
                                     : "(NG < 1.0)"}
                               </span>
                             </div>
@@ -2751,7 +2756,7 @@ export default function TEBrainApp() {
                             <div className="space-y-1.5 text-xs">
                               <div className="flex items-center justify-between">
                                 <span className="text-slate-400">
-                                  Ngưỡng chuẩn (LSL → USL):
+                                  {t.cpkSpecLimits}
                                 </span>
                                 <strong className="text-slate-200 font-mono">
                                   {c.lsl} {c.unit} → {c.usl} {c.unit}
@@ -2760,7 +2765,7 @@ export default function TEBrainApp() {
 
                               <div className="flex items-center justify-between">
                                 <span className="text-slate-400">
-                                  Trung bình thực tế (Mean μ):
+                                  {t.cpkMean}
                                 </span>
                                 <strong className="text-cyan-300 font-mono">
                                   {c.mean} {c.unit}
@@ -2769,7 +2774,7 @@ export default function TEBrainApp() {
 
                               <div className="flex items-center justify-between">
                                 <span className="text-slate-400">
-                                  Độ lệch chuẩn (StdDev σ):
+                                  {t.cpkStdDev}
                                 </span>
                                 <strong className="text-amber-300 font-mono">
                                   {c.stdDev} (Cp = {c.cp})
@@ -2778,7 +2783,7 @@ export default function TEBrainApp() {
 
                               <div className="flex items-center justify-between">
                                 <span className="text-slate-400">
-                                  Giá trị đo Min / Max:
+                                  {t.cpkMinMax}
                                 </span>
                                 <strong className="text-slate-200 font-mono">
                                   {c.min} {c.unit} / {c.max} {c.unit}
@@ -2794,11 +2799,7 @@ export default function TEBrainApp() {
                     {analyticsSubTab === "ai-report" && (
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                         <p className="text-xs text-slate-300 leading-relaxed">
-                          AI sẽ đối chiếu các mã lỗi trong file Log với{" "}
-                          <strong className="text-cyan-300">
-                            Kho Tri Thức MongoDB
-                          </strong>{" "}
-                          để chẩn đoán nguyên nhân và viết sẵn Báo cáo Bàn giao Ca.
+                          {t.aiLogDesc}
                         </p>
 
                         <button
@@ -2810,15 +2811,15 @@ export default function TEBrainApp() {
                           {aiLogLoading ? (
                             <>
                               <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                              <span>Đang phân tích & viết Báo cáo Ca...</span>
+                              <span>{t.aiLogGenerating}</span>
                             </>
                           ) : (
                             <>
                               <Sparkles className="w-4 h-4" />
                               <span>
                                 {aiLogReport
-                                  ? "Tạo Lại Báo Cáo Ca Bằng AI"
-                                  : "Tạo Báo Cáo Bàn Giao Ca Bằng AI"}
+                                  ? t.aiLogRegenerateBtn
+                                  : t.aiLogGenerateBtn}
                               </span>
                             </>
                           )}
@@ -2828,7 +2829,7 @@ export default function TEBrainApp() {
                           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-3 mt-2">
                             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                               <span className="text-xs font-bold text-cyan-300">
-                                Báo Cáo Bàn Giao Ca (Shift Report)
+                                {t.aiLogReportTitle}
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <button
@@ -2838,14 +2839,16 @@ export default function TEBrainApp() {
                                 >
                                   <Volume2 className="w-3.5 h-3.5" />
                                   <span>
-                                    {speakingIdx === 999 ? "Dừng" : "Nghe"}
+                                    {speakingIdx === 999
+                                      ? t.stopListening
+                                      : t.listenGuide}
                                   </span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     navigator.clipboard.writeText(aiLogReport);
-                                    showToast("📋 Đã copy Báo cáo Ca!");
+                                    showToast("📋 Copied!");
                                   }}
                                   className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center gap-1"
                                 >
@@ -2876,10 +2879,10 @@ export default function TEBrainApp() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <h3 className="font-bold text-xs sm:text-sm text-white">
-                        📸 Quét Ảnh Lỗi Tự Động Điền Form
+                        {t.visionTitle}
                       </h3>
                       <p className="text-[11px] text-slate-400">
-                        Chụp màn hình lỗi hoặc SOP để AI tự điền các ô bên dưới
+                        {t.visionDesc}
                       </p>
                     </div>
                     <input
@@ -2896,7 +2899,9 @@ export default function TEBrainApp() {
                       className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
                     >
                       <Camera className="w-4 h-4 text-cyan-300" />
-                      <span>{visionScanning ? "Đang quét..." : "Chụp / Chọn Ảnh"}</span>
+                      <span>
+                        {visionScanning ? t.visionScanningBtn : t.visionScanBtn}
+                      </span>
                     </button>
                   </div>
 
@@ -2909,7 +2914,7 @@ export default function TEBrainApp() {
                           className="w-10 h-10 rounded-lg object-cover"
                         />
                         <span className="text-xs text-emerald-400 font-medium">
-                          Đã điền tự động từ ảnh chụp!
+                          {t.visionAutoFilled}
                         </span>
                       </div>
                       <button
@@ -2926,21 +2931,21 @@ export default function TEBrainApp() {
                 <form onSubmit={handleSaveQuickNote} className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Tên sự cố / Tiêu đề ghi chú *
+                      {t.noteTitleLabel}
                     </label>
                     <input
                       type="text"
                       required
                       value={noteTitle}
                       onChange={(e) => setNoteTitle(e.target.value)}
-                      placeholder="VD: Lỗi FAIL_AUDIO_MIC trên trạm FCT-05"
+                      placeholder={t.noteTitlePlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2.5 text-sm text-white"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Nhóm Trạm Test
+                      {t.noteCategoryLabel}
                     </label>
                     <div className="flex flex-wrap gap-1.5">
                       {TE_CATEGORIES.map((cat) => (
@@ -2953,7 +2958,7 @@ export default function TEBrainApp() {
                             : "bg-slate-900 border-slate-800 text-slate-400"
                             }`}
                         >
-                          {cat}
+                          {cat === "Khác" ? t.otherCategory : cat}
                         </button>
                       ))}
                     </div>
@@ -2962,25 +2967,25 @@ export default function TEBrainApp() {
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Mã lỗi (Error Code)
+                        {t.noteErrorCodeLabel}
                       </label>
                       <input
                         type="text"
                         value={noteErrorCode}
                         onChange={(e) => setNoteErrorCode(e.target.value)}
-                        placeholder="VD: ERR-402"
+                        placeholder={t.noteErrorCodePlaceholder}
                         className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm font-mono text-amber-300"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Trạm Test (Station)
+                        {t.noteStationLabel}
                       </label>
                       <input
                         type="text"
                         value={noteStation}
                         onChange={(e) => setNoteStation(e.target.value)}
-                        placeholder="VD: FCT-02"
+                        placeholder={t.noteStationPlaceholder}
                         className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3 py-2 text-xs sm:text-sm text-white"
                       />
                     </div>
@@ -2989,7 +2994,7 @@ export default function TEBrainApp() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-300">
-                        Triệu chứng lỗi (Symptom)
+                        {t.noteSymptomLabel}
                       </label>
                       <button
                         type="button"
@@ -3002,8 +3007,8 @@ export default function TEBrainApp() {
                         <Mic className="w-3 h-3" />
                         <span>
                           {isListening && voiceTarget === "symptom"
-                            ? "Đang nghe..."
-                            : "Đọc giọng nói"}
+                            ? t.voiceListeningShort
+                            : t.voiceDictateBtn}
                         </span>
                       </button>
                     </div>
@@ -3011,7 +3016,7 @@ export default function TEBrainApp() {
                       rows={2}
                       value={noteSymptom}
                       onChange={(e) => setNoteSymptom(e.target.value)}
-                      placeholder="Biểu hiện trên màn hình test, thông số đo..."
+                      placeholder={t.noteSymptomPlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
                     />
                   </div>
@@ -3019,7 +3024,7 @@ export default function TEBrainApp() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-slate-300">
-                        Nguyên nhân gốc (Root Cause)
+                        {t.noteRootCauseLabel}
                       </label>
                       <button
                         type="button"
@@ -3032,8 +3037,8 @@ export default function TEBrainApp() {
                         <Mic className="w-3 h-3" />
                         <span>
                           {isListening && voiceTarget === "rootCause"
-                            ? "Đang nghe..."
-                            : "Đọc giọng nói"}
+                            ? t.voiceListeningShort
+                            : t.voiceDictateBtn}
                         </span>
                       </button>
                     </div>
@@ -3041,7 +3046,7 @@ export default function TEBrainApp() {
                       rows={2}
                       value={noteRootCause}
                       onChange={(e) => setNoteRootCause(e.target.value)}
-                      placeholder="Do kim Pogo Pin bẩn, lệch Jig hay lỗi linh kiện?"
+                      placeholder={t.noteRootCausePlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
                     />
                   </div>
@@ -3049,7 +3054,7 @@ export default function TEBrainApp() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-emerald-400">
-                        Các bước xử lý (Action / SOP) *
+                        {t.noteSolutionLabel}
                       </label>
                       <button
                         type="button"
@@ -3062,8 +3067,8 @@ export default function TEBrainApp() {
                         <Mic className="w-3 h-3" />
                         <span>
                           {isListening && voiceTarget === "solution"
-                            ? "Đang nghe..."
-                            : "Đọc giọng nói"}
+                            ? t.voiceListeningShort
+                            : t.voiceDictateBtn}
                         </span>
                       </button>
                     </div>
@@ -3072,20 +3077,20 @@ export default function TEBrainApp() {
                       required
                       value={noteSolution}
                       onChange={(e) => setNoteSolution(e.target.value)}
-                      placeholder="Bước 1: Kiểm tra...&#10;Bước 2: Xử lý..."
+                      placeholder={t.noteSolutionPlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-emerald-500/40 focus:border-emerald-400 focus:outline-none px-3.5 py-2 text-sm text-white"
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Tags (Cách nhau bằng dấu phẩy)
+                      {t.noteTagsLabel}
                     </label>
                     <input
                       type="text"
                       value={noteTags}
                       onChange={(e) => setNoteTags(e.target.value)}
-                      placeholder="VD: FCT, PogoPin, 3V3"
+                      placeholder={t.noteTagsPlaceholder}
                       className="w-full rounded-xl bg-slate-900 border border-slate-700/80 focus:border-cyan-500 focus:outline-none px-3.5 py-2 text-sm text-white"
                     />
                   </div>
@@ -3097,9 +3102,7 @@ export default function TEBrainApp() {
                   >
                     <Sparkles className="w-4 h-4" />
                     <span>
-                      {savingNote
-                        ? "Đang lưu Vector vào MongoDB..."
-                        : "Lưu Sổ Tay & Huấn Luyện AI"}
+                      {savingNote ? t.savingNoteBtn : t.saveNoteBtn}
                     </span>
                   </button>
                 </form>
@@ -3114,10 +3117,10 @@ export default function TEBrainApp() {
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <h3 className="font-bold text-xs sm:text-sm text-white">
-                        📂 Nạp Tài Liệu SOP / File Vào Bộ Nhớ AI
+                        {t.vaultUploadTitle}
                       </h3>
                       <p className="text-[11px] text-slate-400">
-                        Hỗ trợ .pdf, .docx, .txt, .csv, .log & ảnh tài liệu
+                        {t.vaultUploadDesc}
                       </p>
                     </div>
                     <input
@@ -3134,7 +3137,9 @@ export default function TEBrainApp() {
                       className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 shrink-0 transition"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>{uploadingFile ? "Đang nạp..." : "Tải File Lên"}</span>
+                      <span>
+                        {uploadingFile ? t.vaultUploadingBtn : t.vaultUploadBtn}
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -3162,7 +3167,11 @@ export default function TEBrainApp() {
                           : "bg-slate-900 border-slate-800 text-slate-400"
                           }`}
                       >
-                        {cat === "Tất cả" ? t.allCategories : cat}
+                        {cat === "Tất cả"
+                          ? t.allCategories
+                          : cat === "Khác"
+                            ? t.otherCategory
+                            : cat}
                       </button>
                     ))}
                   </div>
@@ -3171,11 +3180,11 @@ export default function TEBrainApp() {
                 {/* Items List */}
                 {loadingKnowledge ? (
                   <div className="py-10 text-center text-xs text-slate-400">
-                    Đang tải Kho Tri Thức...
+                    {t.vaultLoading}
                   </div>
                 ) : filteredItems.length === 0 ? (
                   <div className="py-10 text-center bg-slate-900/50 rounded-2xl border border-slate-800 p-5 text-xs text-slate-400">
-                    Chưa có mục tri thức nào khớp từ khóa.
+                    {t.vaultEmpty}
                   </div>
                 ) : (
                   <div className="space-y-2.5">
@@ -3194,7 +3203,9 @@ export default function TEBrainApp() {
                                 </span>
                               )}
                               <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                                {item.category}
+                                {item.category === "Khác"
+                                  ? t.otherCategory
+                                  : item.category}
                               </span>
                               {item.station && (
                                 <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 text-blue-300">
@@ -3274,7 +3285,7 @@ export default function TEBrainApp() {
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white">
-                          Tiêu thụ Token hôm nay ({tokenTelemetry.activeModel})
+                          {t.tokenTodayTitle} ({tokenTelemetry.activeModel})
                         </span>
                       </div>
 
@@ -3298,7 +3309,7 @@ export default function TEBrainApp() {
                       <div className="space-y-1.5 pt-1 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">
-                            Hạn mức Token Free Tier / ngày:
+                            {t.tokenDailyQuotaLabel}
                           </span>
                           <strong className="text-slate-200 font-mono">
                             {tokenTelemetry.limits.dailyTokenQuota.toLocaleString()} tokens
@@ -3306,7 +3317,7 @@ export default function TEBrainApp() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">
-                            Token còn lại hôm nay:
+                            {t.tokenRemainingLabel}
                           </span>
                           <strong className="text-emerald-400 font-mono">
                             {Math.max(
@@ -3319,11 +3330,11 @@ export default function TEBrainApp() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">
-                            Số lượt gọi hôm nay (RPD):
+                            {t.tokenRpdLabel}
                           </span>
                           <strong className="text-white font-mono">
                             {tokenTelemetry.today.requests} /{" "}
-                            {tokenTelemetry.limits.freeTierRpdLimit} lượt
+                            {tokenTelemetry.limits.freeTierRpdLimit} {t.callsUnit}
                           </strong>
                         </div>
                       </div>
@@ -3333,7 +3344,7 @@ export default function TEBrainApp() {
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Prompt (Đầu vào)
+                          {t.tokenPromptBox}
                         </span>
                         <span className="text-base font-bold font-mono text-white mt-0.5 block">
                           {tokenTelemetry.today.promptTokens.toLocaleString()}
@@ -3342,7 +3353,7 @@ export default function TEBrainApp() {
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Thinking (Suy luận)
+                          {t.tokenThinkingBox}
                         </span>
                         <span className="text-base font-bold font-mono text-amber-300 mt-0.5 block">
                           {tokenTelemetry.today.thoughtsTokens.toLocaleString()}
@@ -3351,7 +3362,7 @@ export default function TEBrainApp() {
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Output (Câu trả lời)
+                          {t.tokenOutputBox}
                         </span>
                         <span className="text-base font-bold font-mono text-emerald-300 mt-0.5 block">
                           {tokenTelemetry.today.candidatesTokens.toLocaleString()}
@@ -3360,7 +3371,8 @@ export default function TEBrainApp() {
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Tổng lũy kế ({tokenTelemetry.allTime.requests} lượt)
+                          {t.tokenCumulativeBox} ({tokenTelemetry.allTime.requests}{" "}
+                          {t.callsUnit})
                         </span>
                         <span className="text-base font-bold font-mono text-cyan-300 mt-0.5 block">
                           {tokenTelemetry.allTime.totalTokens.toLocaleString()}
@@ -3371,24 +3383,25 @@ export default function TEBrainApp() {
                     {/* Official Spec Limits */}
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2 text-xs">
                       <span className="font-bold text-slate-200 block">
-                        Giới hạn kỹ thuật của Model ({tokenTelemetry.activeModel})
+                        {t.modelSpecLimitsTitle} ({tokenTelemetry.activeModel})
                       </span>
                       <div className="flex items-center justify-between pt-1 border-t border-slate-800">
-                        <span className="text-slate-400">Context tối đa / lượt:</span>
+                        <span className="text-slate-400">{t.maxContextLabel}</span>
                         <strong className="text-slate-200 font-mono">
                           {tokenTelemetry.limits.inputTokenLimit.toLocaleString()} tokens
                         </strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Output tối đa / lượt:</span>
+                        <span className="text-slate-400">{t.maxOutputLabel}</span>
                         <strong className="text-slate-200 font-mono">
                           {tokenTelemetry.limits.outputTokenLimit.toLocaleString()} tokens
                         </strong>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Giới hạn phút (TPM):</span>
+                        <span className="text-slate-400">{t.tpmLimitLabel}</span>
                         <strong className="text-slate-200 font-mono">
-                          {tokenTelemetry.limits.freeTierTpmLimit.toLocaleString()} / phút
+                          {tokenTelemetry.limits.freeTierTpmLimit.toLocaleString()}{" "}
+                          {t.perMinuteUnit}
                         </strong>
                       </div>
                     </div>
@@ -3397,7 +3410,8 @@ export default function TEBrainApp() {
                     {tokenTelemetry.recentLogs.length > 0 && (
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
                         <span className="text-xs font-bold text-slate-200 block">
-                          Nhật ký tiêu thụ gần nhất ({tokenTelemetry.recentLogs.length} lượt)
+                          {t.recentTokenLogsTitle} (
+                          {tokenTelemetry.recentLogs.length} {t.callsUnit})
                         </span>
                         <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
                           {tokenTelemetry.recentLogs.map((log) => (
@@ -3459,10 +3473,11 @@ export default function TEBrainApp() {
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-white flex items-center gap-1.5">
                             <Database className="w-4 h-4 text-emerald-400" />
-                            <span>Ổ Cứng Chứa MongoDB Local</span>
+                            <span>{t.localDiskTitle}</span>
                           </span>
                           <span className="text-xs font-mono font-bold text-emerald-400">
-                            Trống {formatBytes(dbStorage.fsFreeSize)}
+                            {t.freeSpacePrefix}{" "}
+                            {formatBytes(dbStorage.fsFreeSize)}
                           </span>
                         </div>
 
@@ -3482,7 +3497,7 @@ export default function TEBrainApp() {
                         <div className="space-y-1.5 pt-1 text-xs">
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">
-                              Đã dùng / Tổng dung lượng ổ đĩa:
+                              {t.diskUsedTotalLabel}
                             </span>
                             <strong className="text-slate-200 font-mono">
                               {formatBytes(dbStorage.fsUsedSize)} /{" "}
@@ -3491,7 +3506,7 @@ export default function TEBrainApp() {
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-slate-400">
-                              Không gian trống còn lại:
+                              {t.diskFreeLabel}
                             </span>
                             <strong className="text-emerald-400 font-mono">
                               {formatBytes(dbStorage.fsFreeSize)} (
@@ -3510,7 +3525,7 @@ export default function TEBrainApp() {
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white">
-                          Hạn Mức Chuẩn MongoDB Atlas Free (512 MB)
+                          {t.atlasQuotaTitle}
                         </span>
                       </div>
 
@@ -3534,7 +3549,7 @@ export default function TEBrainApp() {
                       <div className="space-y-1.5 pt-1 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">
-                            Dung lượng còn trống (trên 512 MB):
+                            {t.atlasRemainingLabel}
                           </span>
                           <strong className="text-cyan-300 font-mono">
                             {formatBytes(dbStorage.atlasFreeRemainingBytes)}
@@ -3542,14 +3557,14 @@ export default function TEBrainApp() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-400">
-                            Ước tính nạp thêm được:
+                            {t.atlasEstDocsLabel}
                           </span>
                           <strong className="text-white font-mono">
                             ~
                             {Math.floor(
                               dbStorage.atlasFreeRemainingBytes / 28000
                             ).toLocaleString()}{" "}
-                            tài liệu Vector
+                            {t.vectorDocsUnit}
                           </strong>
                         </div>
                       </div>
@@ -3559,43 +3574,44 @@ export default function TEBrainApp() {
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Dữ liệu thuần (Data)
+                          {t.dbDataSizeBox}
                         </span>
                         <span className="text-base font-bold font-mono text-white mt-0.5 block">
                           {formatBytes(dbStorage.dataSize)}
                         </span>
                         <span className="text-[10px] text-slate-500">
-                          {dbStorage.objects} bản ghi ({dbStorage.collections} bảng)
+                          {dbStorage.objects} {t.dbRecordsUnit} (
+                          {dbStorage.collections} {t.dbTablesUnit})
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Cấp phát (Storage)
+                          {t.dbStorageSizeBox}
                         </span>
                         <span className="text-base font-bold font-mono text-emerald-300 mt-0.5 block">
                           {formatBytes(dbStorage.storageSize)}
                         </span>
                         <span className="text-[10px] text-slate-500">
-                          Nén WiredTiger
+                          {t.dbCompressedNote}
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Chỉ mục (Index Size)
+                          {t.dbIndexSizeBox}
                         </span>
                         <span className="text-base font-bold font-mono text-amber-300 mt-0.5 block">
                           {formatBytes(dbStorage.indexSize)}
                         </span>
                         <span className="text-[10px] text-slate-500">
-                          Truy vấn nhanh
+                          {t.dbFastQueryNote}
                         </span>
                       </div>
 
                       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3">
                         <span className="text-[11px] text-slate-400 block">
-                          Tổng DB Chiếm Dụng
+                          {t.dbTotalOccupiedBox}
                         </span>
                         <span className="text-base font-bold font-mono text-cyan-300 mt-0.5 block">
                           {formatBytes(dbStorage.totalDbSize)}
@@ -3614,6 +3630,11 @@ export default function TEBrainApp() {
                     <div className="space-y-2">
                       {AVAILABLE_MODELS.map((m) => {
                         const isSelected = selectedModel === m.id;
+                        const localizedMeta =
+                          t.modelDescriptions[m.id] || {
+                            badge: m.badge,
+                            desc: m.desc,
+                          };
                         return (
                           <button
                             key={m.id}
@@ -3625,7 +3646,7 @@ export default function TEBrainApp() {
                                 m.id
                               );
                               fetchSystemStatus(m.id);
-                              showToast(`Đã chọn Model: ${m.name}`);
+                              showToast(`Model: ${m.name}`);
                             }}
                             className={`w-full text-left rounded-2xl p-3.5 border transition flex items-start justify-between gap-2.5 ${isSelected
                               ? "bg-cyan-950/40 border-cyan-400"
@@ -3643,19 +3664,21 @@ export default function TEBrainApp() {
                                     : "bg-slate-800 text-slate-300"
                                     }`}
                                 >
-                                  {m.badge}
+                                  {localizedMeta.badge}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-400">{m.desc}</p>
+                              <p className="text-xs text-slate-400">
+                                {localizedMeta.desc}
+                              </p>
                               <div className="space-y-1 pt-1.5 mt-1 border-t border-slate-800/70 text-[11px] font-mono">
                                 <div className="flex items-center justify-between text-slate-400">
-                                  <span>Context tối đa:</span>
+                                  <span>{t.maxContextShort}</span>
                                   <span className="text-slate-200 font-semibold">
                                     {m.context} tokens
                                   </span>
                                 </div>
                                 <div className="flex items-center justify-between text-slate-400">
-                                  <span>Output tối đa:</span>
+                                  <span>{t.maxOutputShort}</span>
                                   <span className="text-slate-200 font-semibold">
                                     {m.output} tokens
                                   </span>
@@ -3682,14 +3705,17 @@ export default function TEBrainApp() {
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
                       <h3 className="font-bold text-xs text-white flex items-center gap-1.5">
                         <KeyRound className="w-4 h-4 text-cyan-400" />
-                        <span>Đổi Gemini API Key (Hiện tại: {systemStatus.maskedKey})</span>
+                        <span>
+                          {t.changeApiKeyTitle} ({t.currentKeyLabel}{" "}
+                          {systemStatus.maskedKey})
+                        </span>
                       </h3>
                       <div className="flex gap-2">
                         <input
                           type="password"
                           value={customApiKey}
                           onChange={(e) => setCustomApiKey(e.target.value)}
-                          placeholder="Để trống để dùng Key mặc định..."
+                          placeholder={t.apiKeyPlaceholder}
                           className="flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs text-white"
                         />
                         <button
@@ -3700,16 +3726,16 @@ export default function TEBrainApp() {
                                 "te_brain_gemini_key",
                                 customApiKey.trim()
                               );
-                              showToast("Đã lưu API Key mới!");
+                              showToast("✅ Saved API Key!");
                             } else {
                               localStorage.removeItem("te_brain_gemini_key");
-                              showToast("Đang dùng Key mặc định!");
+                              showToast("ℹ️ Using Default Server Key");
                             }
                             fetchSystemStatus();
                           }}
                           className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-semibold text-white transition"
                         >
-                          Lưu
+                          {t.saveBtn}
                         </button>
                       </div>
                     </div>
@@ -3801,7 +3827,9 @@ export default function TEBrainApp() {
               <div>
                 <div className="flex flex-wrap items-center gap-1.5 mb-1">
                   <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300">
-                    {selectedItemModal.category}
+                    {selectedItemModal.category === "Khác"
+                      ? t.otherCategory
+                      : selectedItemModal.category}
                   </span>
                   {selectedItemModal.errorCode && (
                     <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
@@ -3833,10 +3861,21 @@ export default function TEBrainApp() {
             <div className="flex items-center justify-between pt-1">
               <button
                 onClick={() => {
-                  const q = `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${selectedItemModal.errorCode
-                    ? `(${selectedItemModal.errorCode})`
-                    : ""
-                    }`;
+                  const q =
+                    appLang === "zh"
+                      ? `请详细说明如何检查与处理此异常：“${selectedItemModal.title}” ${selectedItemModal.errorCode
+                        ? `(${selectedItemModal.errorCode})`
+                        : ""
+                        }`
+                      : appLang === "en"
+                        ? `Provide detailed SOP troubleshooting steps for: "${selectedItemModal.title}" ${selectedItemModal.errorCode
+                          ? `(${selectedItemModal.errorCode})`
+                          : ""
+                          }`
+                        : `Hướng dẫn chi tiết cách kiểm tra và xử lý: "${selectedItemModal.title}" ${selectedItemModal.errorCode
+                          ? `(${selectedItemModal.errorCode})`
+                          : ""
+                          }`;
                   setSelectedItemModal(null);
                   setActiveTab("chat");
                   handleSendMessage(q);
@@ -3844,7 +3883,7 @@ export default function TEBrainApp() {
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition"
               >
                 <Bot className="w-4 h-4" />
-                <span>Hỏi sâu AI về ca lỗi này</span>
+                <span>{t.modalAskAiBtn}</span>
               </button>
 
               <button
@@ -3852,7 +3891,7 @@ export default function TEBrainApp() {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 text-xs transition"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Xóa</span>
+                <span>{t.modalDeleteBtn}</span>
               </button>
             </div>
           </div>
