@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/mongodb";
-import { KnowledgeItem } from "@/models/KnowledgeItem";
+import {
+  KnowledgeItem,
+  getCachedKnowledgeWithVectors,
+} from "@/models/KnowledgeItem";
 import { ChatSession } from "@/models/ChatSession";
 import { TokenUsage } from "@/models/TokenUsage";
 import {
@@ -18,14 +21,13 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
     const apiKey = getEffectiveApiKey(req.headers.get("x-gemini-key") || undefined);
-    const totalKnowledge = await KnowledgeItem.countDocuments();
-    const sessions = await ChatSession.find({})
-      .sort({ updatedAt: -1 })
-      .limit(25)
-      .lean();
+    const [totalKnowledge, sessions, existingLogsCount] = await Promise.all([
+      KnowledgeItem.countDocuments(),
+      ChatSession.find({}).sort({ updatedAt: -1 }).limit(25).lean(),
+      TokenUsage.countDocuments(),
+    ]);
 
     // 1. Backfill initial TokenUsage records if collection is empty but items/chats exist
-    const existingLogsCount = await TokenUsage.countDocuments();
     const todayKey = getLocalDateKey();
 
     if (existingLogsCount === 0 && totalKnowledge > 0) {
@@ -227,16 +229,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Generate embedding for user query
-    let queryEmbedding: number[] = [];
-    try {
-      queryEmbedding = await generateEmbedding(question, apiKey);
-    } catch {
-      queryEmbedding = [];
-    }
-
-    // 2. Fetch knowledge items from MongoDB and compute hybrid RAG score
-    const allItems = await KnowledgeItem.find({}).lean();
+    // 1 & 2. Run Query Embedding + In-Memory Vector Cache retrieval IN PARALLEL for maximum speed
+    const [queryEmbedding, allItems] = await Promise.all([
+      generateEmbedding(question, apiKey).catch(() => [] as number[]),
+      getCachedKnowledgeWithVectors(),
+    ]);
 
     const scored: RetrievedContext[] = allItems.map((item) => {
       const vecScore =

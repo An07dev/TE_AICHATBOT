@@ -60,6 +60,7 @@ export async function generateEmbedding(text: string, customKey?: string): Promi
         parts: [{ text: cleanText }],
       },
     }),
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {
@@ -69,31 +70,10 @@ export async function generateEmbedding(text: string, customKey?: string): Promi
   }
 
   const data = await res.json();
+  const tokenCount = Math.max(1, Math.ceil(cleanText.length / 3.8));
 
-  // Count tokens via countTokens endpoint or fallback estimation for embedding call
-  let tokenCount = Math.max(1, Math.ceil(cleanText.length / 4));
-  try {
-    const countRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:countTokens?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: cleanText }] }],
-        }),
-      }
-    );
-    if (countRes.ok) {
-      const countData = await countRes.json();
-      if (typeof countData.totalTokens === "number") {
-        tokenCount = countData.totalTokens;
-      }
-    }
-  } catch {
-    // use fallback
-  }
-
-  await recordTokenUsage({
+  // Fire-and-forget token logging so embedding returns immediately
+  void recordTokenUsage({
     actionType: "embedding",
     modelName: EMBEDDING_MODEL,
     promptTokens: tokenCount,
@@ -320,10 +300,18 @@ ${params.question}`;
             maxOutputTokens: 8192,
           },
         }),
+        signal: AbortSignal.timeout(15000),
       });
 
       const data = await res.json();
-      if (res.ok && data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const candParts = data?.candidates?.[0]?.content?.parts || [];
+      const answerPart = candParts.find(
+        (p: { text?: string; thought?: boolean }) =>
+          typeof p.text === "string" && !p.thought
+      );
+      const answerText = answerPart?.text || candParts[0]?.text;
+
+      if (res.ok && answerText) {
         const meta = data.usageMetadata || {};
         const usage: UsageStats = {
           promptTokens: meta.promptTokenCount || 0,
@@ -332,14 +320,14 @@ ${params.question}`;
           totalTokens: meta.totalTokenCount || 0,
         };
 
-        await recordTokenUsage({
+        void recordTokenUsage({
           actionType: "chat",
           modelName: model,
           ...usage,
         });
 
         return {
-          answer: data.candidates[0].content.parts[0].text,
+          answer: answerText,
           modelUsed: model,
           usage,
         };

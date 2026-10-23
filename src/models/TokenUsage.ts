@@ -28,11 +28,9 @@ const TokenUsageSchema = new Schema<ITokenUsage>(
   { timestamps: true }
 );
 
-if (mongoose.models.TokenUsage) {
-  delete mongoose.models.TokenUsage;
-}
+TokenUsageSchema.index({ createdAt: -1 });
+TokenUsageSchema.index({ dateKey: 1, createdAt: -1 });
 
-export const TokenUsage: Model<ITokenUsage> = mongoose.model<ITokenUsage>(
-  "TokenUsage",
-  TokenUsageSchema
-);
+export const TokenUsage: Model<ITokenUsage> =
+  mongoose.models.TokenUsage ||
+  mongoose.model<ITokenUsage>("TokenUsage", TokenUsageSchema);

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import { KnowledgeItem } from "@/models/KnowledgeItem";
+import {
+  KnowledgeItem,
+  invalidateKnowledgeCache,
+} from "@/models/KnowledgeItem";
 import { generateEmbedding } from "@/lib/gemini";
 
 const INITIAL_TE_SAMPLES = [
@@ -209,6 +212,8 @@ export async function POST(req: NextRequest) {
       embedding,
     });
 
+    invalidateKnowledgeCache();
+
     return NextResponse.json({
       success: true,
       item: {
@@ -243,6 +248,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Thiếu ID cần xóa" }, { status: 400 });
     }
     await KnowledgeItem.findByIdAndDelete(id);
+    invalidateKnowledgeCache();
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Lỗi khi xóa";

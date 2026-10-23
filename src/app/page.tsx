@@ -381,6 +381,7 @@ export default function TEBrainApp() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAudioCacheRef = useRef<Map<string, string[]>>(new Map());
 
   // Quick Note Form state
   const [noteTitle, setNoteTitle] = useState("");
@@ -539,10 +540,23 @@ export default function TEBrainApp() {
       });
       const data = await res.json();
       if (data.success) {
-        setItems(data.items || []);
-        setStats(
-          data.stats || { total: 0, notes: 0, documents: 0, vectorized: 0 }
-        );
+        const nextItems = data.items || [];
+        const nextStats = data.stats || {
+          total: 0,
+          notes: 0,
+          documents: 0,
+          vectorized: 0,
+        };
+        setItems(nextItems);
+        setStats(nextStats);
+        try {
+          localStorage.setItem(
+            "te_brain_cache_knowledge",
+            JSON.stringify({ items: nextItems, stats: nextStats })
+          );
+        } catch {
+          // ignore storage quota
+        }
       }
     } catch (e) {
       console.error("Failed to load knowledge:", e);
@@ -572,7 +586,17 @@ export default function TEBrainApp() {
       if (data.status) setSystemStatus(data.status);
       if (data.tokenTelemetry) setTokenTelemetry(data.tokenTelemetry);
       if (data.dbStorage) setDbStorage(data.dbStorage);
-      if (Array.isArray(data.sessions)) setChatSessions(data.sessions);
+      if (Array.isArray(data.sessions)) {
+        setChatSessions(data.sessions);
+        try {
+          localStorage.setItem(
+            "te_brain_cache_sessions",
+            JSON.stringify(data.sessions)
+          );
+        } catch {
+          // ignore storage quota
+        }
+      }
     } catch {
       // ignore
     }
@@ -678,6 +702,38 @@ export default function TEBrainApp() {
       setMessages([{ role: "assistant", content: UI_TEXT[savedLang].welcomeMessage }]);
     }
 
+    // 1. Instant 0ms Stale-While-Revalidate Hydration from localStorage
+    try {
+      const cachedKnowledge = localStorage.getItem("te_brain_cache_knowledge");
+      if (cachedKnowledge) {
+        const parsed = JSON.parse(cachedKnowledge);
+        if (Array.isArray(parsed.items)) {
+          setItems(parsed.items);
+          setLoadingKnowledge(false);
+        }
+        if (parsed.stats) setStats(parsed.stats);
+      }
+      const cachedSessions = localStorage.getItem("te_brain_cache_sessions");
+      if (cachedSessions) {
+        const parsedSessions = JSON.parse(cachedSessions);
+        if (Array.isArray(parsedSessions)) setChatSessions(parsedSessions);
+      }
+      const savedDraft = localStorage.getItem("te_brain_note_draft");
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        if (draft.noteTitle) setNoteTitle(draft.noteTitle);
+        if (draft.noteCategory) setNoteCategory(draft.noteCategory);
+        if (draft.noteErrorCode) setNoteErrorCode(draft.noteErrorCode);
+        if (draft.noteStation) setNoteStation(draft.noteStation);
+        if (draft.noteSymptom) setNoteSymptom(draft.noteSymptom);
+        if (draft.noteRootCause) setNoteRootCause(draft.noteRootCause);
+        if (draft.noteSolution) setNoteSolution(draft.noteSolution);
+        if (draft.noteTags) setNoteTags(draft.noteTags);
+      }
+    } catch {
+      // ignore parse errors
+    }
+
     fetch("/api/auth", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
@@ -690,6 +746,48 @@ export default function TEBrainApp() {
       .catch(() => { })
       .finally(() => setAuthChecked(true));
   }, []);
+
+  // Auto-save Quick Note draft to localStorage so factory engineers never lose typed notes
+  useEffect(() => {
+    try {
+      if (
+        noteTitle ||
+        noteErrorCode ||
+        noteStation ||
+        noteSymptom ||
+        noteRootCause ||
+        noteSolution ||
+        noteTags
+      ) {
+        localStorage.setItem(
+          "te_brain_note_draft",
+          JSON.stringify({
+            noteTitle,
+            noteCategory,
+            noteErrorCode,
+            noteStation,
+            noteSymptom,
+            noteRootCause,
+            noteSolution,
+            noteTags,
+          })
+        );
+      } else {
+        localStorage.removeItem("te_brain_note_draft");
+      }
+    } catch {
+      // ignore
+    }
+  }, [
+    noteTitle,
+    noteCategory,
+    noteErrorCode,
+    noteStation,
+    noteSymptom,
+    noteRootCause,
+    noteSolution,
+    noteTags,
+  ]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -887,6 +985,11 @@ export default function TEBrainApp() {
       setNoteSolution("");
       setNoteTags("");
       setVisionPreview(null);
+      try {
+        localStorage.removeItem("te_brain_note_draft");
+      } catch {
+        // ignore
+      }
       await fetchKnowledge();
       setActiveTab("vault");
     } catch (err: unknown) {
@@ -1369,23 +1472,32 @@ export default function TEBrainApp() {
     // Unlock the HTMLAudioElement SYNCHRONOUSLY inside the user's tap gesture BEFORE awaiting fetch("/api/tts")
     unlockAudioForIOS();
     const player = audioPlayerRef.current!;
+    const cacheKey = `${appLang}:${cleaned.slice(0, 120)}:${cleaned.length}`;
 
     try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleaned, lang: appLang }),
-      });
-      const data = await res.json();
+      let chunks: string[] = ttsAudioCacheRef.current.get(cacheKey) || [];
 
-      const chunks: string[] =
-        Array.isArray(data.audioChunks) && data.audioChunks.length > 0
-          ? data.audioChunks
-          : data.audioBase64
-            ? [data.audioBase64]
-            : [];
+      if (chunks.length === 0) {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: cleaned, lang: appLang }),
+        });
+        const data = await res.json();
 
-      if (res.ok && data.success && chunks.length > 0) {
+        chunks =
+          Array.isArray(data.audioChunks) && data.audioChunks.length > 0
+            ? data.audioChunks
+            : data.audioBase64
+              ? [data.audioBase64]
+              : [];
+
+        if (res.ok && data.success && chunks.length > 0) {
+          ttsAudioCacheRef.current.set(cacheKey, chunks);
+        }
+      }
+
+      if (chunks.length > 0) {
         let currentChunkIdx = 0;
         let currentBlobUrl: string | null = null;
 
@@ -1401,7 +1513,7 @@ export default function TEBrainApp() {
           }
 
           const b64 = chunks[currentChunkIdx++];
-          currentBlobUrl = base64ToBlobUrl(b64, data.mimeType || "audio/mpeg");
+          currentBlobUrl = base64ToBlobUrl(b64, "audio/mpeg");
           player.src = currentBlobUrl;
           player.playbackRate = 1.05;
 

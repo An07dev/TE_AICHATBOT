@@ -52,11 +52,8 @@ const ChatSessionSchema = new Schema<IChatSession>(
   { timestamps: true }
 );
 
-if (mongoose.models.ChatSession) {
-  delete mongoose.models.ChatSession;
-}
+ChatSessionSchema.index({ updatedAt: -1 });
 
-export const ChatSession: Model<IChatSession> = mongoose.model<IChatSession>(
-  "ChatSession",
-  ChatSessionSchema
-);
+export const ChatSession: Model<IChatSession> =
+  mongoose.models.ChatSession ||
+  mongoose.model<IChatSession>("ChatSession", ChatSessionSchema);
