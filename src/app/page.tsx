@@ -3752,10 +3752,11 @@ export default function TEBrainApp() {
                             key={dir.id}
                             type="button"
                             onClick={() => setTransDirection(dir.id)}
-                            className={`py-1.5 px-1.5 rounded-lg text-[11px] font-semibold transition text-center whitespace-nowrap truncate ${transDirection === dir.id
-                              ? "bg-cyan-500/20 border border-cyan-400/60 text-cyan-300"
-                              : "text-slate-400 hover:text-slate-200"
-                              }`}
+                            className={`py-1.5 px-2 rounded-lg text-sm font-semibold transition text-center whitespace-nowrap flex items-center justify-center ${
+                              transDirection === dir.id
+                                ? "bg-cyan-500/20 border border-cyan-400/60 text-cyan-300 shadow-sm"
+                                : "text-slate-400 hover:text-slate-200"
+                            }`}
                           >
                             {dir.label}
                           </button>
