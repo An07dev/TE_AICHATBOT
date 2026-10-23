@@ -4,13 +4,35 @@ import { TokenUsage } from "@/models/TokenUsage";
 const DEFAULT_API_KEY = process.env.GEMINI_API_KEY || "";
 const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
 
-// Ordered fallback list of fast, free-tier compatible Gemini models
+// Ordered fallback list of ultra-fast, high-quota Gemini models
 const CHAT_MODELS_FALLBACK = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
   process.env.GEMINI_CHAT_MODEL || "gemini-3.6-flash",
   "gemini-3.5-flash",
-  "gemini-3.1-flash-lite",
   "gemini-3.8-flash",
 ];
+
+// In-memory circuit breaker to skip models that recently returned 429 (Quota) or 503 (Overloaded)
+const modelCooldownUntil = new Map<string, number>();
+
+function isModelCoolingDown(model: string): boolean {
+  const until = modelCooldownUntil.get(model);
+  if (!until) return false;
+  if (Date.now() < until) return true;
+  modelCooldownUntil.delete(model);
+  return false;
+}
+
+function markModelCooldown(model: string, status: number) {
+  if (status === 429) {
+    // Quota exceeded: skip this model for 15 minutes
+    modelCooldownUntil.set(model, Date.now() + 15 * 60 * 1000);
+  } else if (status === 503 || status === 500 || status === 404) {
+    // Overloaded or unavailable: skip for 3 minutes
+    modelCooldownUntil.set(model, Date.now() + 3 * 60 * 1000);
+  }
+}
 
 export function getEffectiveApiKey(customKey?: string): string {
   return (customKey && customKey.trim()) || DEFAULT_API_KEY;
@@ -285,7 +307,10 @@ ${params.question}`;
     params.preferredModel && (!hasImage || preferredIsVisionCapable)
       ? [params.preferredModel, ...CHAT_MODELS_FALLBACK]
       : CHAT_MODELS_FALLBACK;
-  const uniqueModels = Array.from(new Set(modelQueue));
+  const allCandidates = Array.from(new Set(modelQueue));
+  const activeCandidates = allCandidates.filter((m) => !isModelCoolingDown(m));
+  const uniqueModels =
+    activeCandidates.length > 0 ? activeCandidates : allCandidates;
 
   for (const model of uniqueModels) {
     try {
@@ -297,13 +322,16 @@ ${params.question}`;
           contents: [{ parts }],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 8192,
+            maxOutputTokens: 4096,
           },
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(12000),
       });
 
       const data = await res.json();
+      if (!res.ok) {
+        markModelCooldown(model, res.status);
+      }
       const candParts = data?.candidates?.[0]?.content?.parts || [];
       const answerPart = candParts.find(
         (p: { text?: string; thought?: boolean }) =>

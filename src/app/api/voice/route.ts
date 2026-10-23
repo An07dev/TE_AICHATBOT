@@ -5,6 +5,7 @@ import { getEffectiveApiKey, getLocalDateKey } from "@/lib/gemini";
 
 // Fast models first for low-latency voice transcription
 const MODELS = [
+  "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.5-flash",
   "gemini-3.6-flash",

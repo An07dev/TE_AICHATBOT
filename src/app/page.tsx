@@ -104,18 +104,10 @@ const TE_CATEGORIES = [
 
 const AVAILABLE_MODELS = [
   {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash",
-    badge: "Khuyên dùng",
-    desc: "Cân bằng tốc độ & suy luận sâu (Thinking), đa phương thức",
-    context: "1,048,576",
-    output: "65,536",
-  },
-  {
-    id: "gemini-3.5-flash",
-    name: "Gemini 3.5 Flash",
-    badge: "Ổn định",
-    desc: "Độ ổn định cao, phản hồi mượt cho tra cứu SOP & mã lỗi",
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash Lite",
+    badge: "Khuyên dùng • Siêu tốc",
+    desc: "Phản hồi ~2s, hạn mức Free Tier cao, tối ưu tra cứu SOP tại chuyền",
     context: "1,048,576",
     output: "65,536",
   },
@@ -128,10 +120,18 @@ const AVAILABLE_MODELS = [
     output: "65,536",
   },
   {
-    id: "gemini-3.5-flash-lite",
-    name: "Gemini 3.5 Flash Lite",
-    badge: "Nhẹ & Nhanh",
-    desc: "Bản rút gọn 3.5, tối ưu cho câu hỏi ngắn tại chuyền",
+    id: "gemini-3.5-flash",
+    name: "Gemini 3.5 Flash",
+    badge: "Ổn định",
+    desc: "Độ ổn định cao, có suy luận sâu cho phân tích lỗi phức tạp",
+    context: "1,048,576",
+    output: "65,536",
+  },
+  {
+    id: "gemini-3.6-flash",
+    name: "Gemini 3.6 Flash",
+    badge: "Thinking Sâu",
+    desc: "Cân bằng tốc độ & suy luận sâu (Thinking), đa phương thức",
     context: "1,048,576",
     output: "65,536",
   },
@@ -406,7 +406,7 @@ export default function TEBrainApp() {
 
   // Settings state
   const [customApiKey, setCustomApiKey] = useState("");
-  const [selectedModel, setSelectedModel] = useState("gemini-3.6-flash");
+  const [selectedModel, setSelectedModel] = useState("gemini-3.5-flash-lite");
   const [systemStatus, setSystemStatus] = useState({
     mongodbConnected: true,
     geminiConfigured: true,
@@ -414,7 +414,7 @@ export default function TEBrainApp() {
     totalKnowledge: 0,
   });
   const [tokenTelemetry, setTokenTelemetry] = useState({
-    activeModel: "gemini-3.6-flash",
+    activeModel: "gemini-3.5-flash-lite",
     limits: {
       inputTokenLimit: 1048576,
       outputTokenLimit: 65536,
